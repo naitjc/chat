@@ -9,7 +9,7 @@ const port = 8888;
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, '../frontend'))); // Serve static files from frontend using absolute path
+app.use(express.static(path.join(__dirname, '../frontend-vue/dist'))); // Serve static files from Vue build
 
 const apiKey = process.env.GLM_API_KEY || "sk-1KHilQYuk8RNIBsoC695170b33234435Af6bB7Cc7f46A188";
 const apiURL = "https://api.edgefn.net/v1/chat/completions";

@@ -1,0 +1,378 @@
+<script setup>
+import { ref, nextTick, computed } from 'vue';
+
+const props = defineProps({
+  characterSettings: {
+    type: Object,
+    required: true
+  }
+});
+
+const chatInput = ref('');
+const conversationHistory = ref([]);
+const currentImageBase64 = ref(null);
+const isSending = ref(false);
+const chatBoxRef = ref(null);
+const imageInputRef = ref(null);
+
+const hasText = computed(() => chatInput.value.trim().length > 0);
+const hasImage = computed(() => currentImageBase64.value !== null);
+const canSend = computed(() => (hasText.value || hasImage.value) && !isSending.value);
+
+const triggerImageUpload = () => {
+  imageInputRef.value.click();
+};
+
+const handleImageChange = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e_reader) => {
+      currentImageBase64.value = e_reader.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  // Reset input so same file can be selected again if needed
+  e.target.value = '';
+};
+
+const clearImage = () => {
+  currentImageBase64.value = null;
+};
+
+const scrollToBottom = async () => {
+  await nextTick();
+  if (chatBoxRef.value) {
+    chatBoxRef.value.scrollTop = chatBoxRef.value.scrollHeight;
+  }
+};
+
+const addMessage = (role, content, image = null) => {
+  conversationHistory.value.push({
+    role: role === 'user' ? 'user' : 'assistant', // Store as 'user' or 'assistant' for API history
+    displayRole: role, // 'user' or 'bot' for display styling
+    content: content,
+    image: image
+  });
+  scrollToBottom();
+};
+
+const sendMessage = async () => {
+  if (!canSend.value) return;
+
+  const question = chatInput.value.trim();
+  const imageToSend = currentImageBase64.value;
+
+  // Add user message to UI
+  addMessage('user', question, imageToSend);
+
+  // Clear inputs
+  chatInput.value = '';
+  currentImageBase64.value = null;
+  isSending.value = true;
+
+  const payload = {
+    question: question,
+    image: imageToSend,
+    history: conversationHistory.value.map(msg => ({
+        role: msg.role,
+        content: msg.content
+    })).slice(0, -1), // Exclude the just added message if we want history to be previous messages, but usually we include all previous. 
+    // Wait, the original code sends `conversationHistory` which accumulates responses.
+    // In original code: 
+    // addMessage('user'...) -> UI only
+    // payload.history = conversationHistory (which only contains 'assistant' responses pushed later? No, let's check original code)
+    
+    // Original code:
+    // let conversationHistory = [];
+    // addMessage('user'...) -> updates UI
+    // payload = { ... history: conversationHistory ... }
+    // fetch...
+    // addMessage('bot'...) -> updates UI
+    // conversationHistory.push({ role: 'assistant', content: answer });
+    
+    // So original code ONLY stores assistant responses in `conversationHistory` sent to backend?
+    // Let's re-read original script.js lines 161 and 186.
+    // Line 17: let conversationHistory = [];
+    // Line 161: history: conversationHistory
+    // Line 186: conversationHistory.push({ role: 'assistant', content: answer });
+    // It seems it ONLY sends assistant history? That's odd for a chat app, usually it sends the whole conversation.
+    // But I must replicate existing behavior unless it's a bug.
+    // If I look at line 186, it pushes `{ role: 'assistant', content: answer }`.
+    // It NEVER pushes user messages to `conversationHistory`.
+    // So the backend only receives previous assistant answers?
+    // I will stick to the original logic to be safe, or improve it if it looks like a clear bug.
+    // Given "qa-app", maybe it's just QA pairs? But "history" implies context.
+    // If the backend expects full history, the original code might be buggy.
+    // However, I should probably replicate "what it does" first.
+    // Wait, if I change it, I might break backend expectations if backend handles history merging.
+    // I will replicate the exact behavior: `conversationHistory` only tracks assistant responses.
+    
+    // Actually, looking at standard LLM usage, usually you send [user, assistant, user, assistant].
+    // If the original code only sent assistant messages, the context might be lost.
+    // But I am "migrating", so I should probably keep logic.
+    // Let's look at `conversationHistory` usage in original code.
+    // It is initialized empty.
+    // It is passed in payload.
+    // It is updated ONLY in `sendMessage` success block: `conversationHistory.push({ role: 'assistant', content: answer });`
+    // So yes, it only contains assistant messages.
+    
+    roleName: props.characterSettings.roleName,
+    behavioralTraits: props.characterSettings.behavioralTraits,
+    identityBackground: props.characterSettings.identityBackground,
+    personalityTraits: props.characterSettings.personalityTraits,
+    languageStyle: props.characterSettings.languageStyle
+  };
+
+  try {
+    const response = await fetch('http://localhost:8888/qa', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP 错误！状态: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const answer = data.answer;
+
+    addMessage('bot', answer);
+    
+    // Update history for next turn (only assistant messages as per original)
+    // But wait, if I use a local `conversationHistory` for UI, I need a separate one for API?
+    // In my Vue code, `conversationHistory` is used for v-for in template (UI).
+    // So I should separate UI messages from API history.
+    
+    apiHistory.value.push({ role: 'assistant', content: answer });
+
+  } catch (error) {
+    console.error('请求失败:', error);
+    addMessage('bot', '抱歉，发生了一个错误。请稍后再试。');
+  } finally {
+    isSending.value = false;
+  }
+};
+
+// Separate state for API history to match original behavior
+const apiHistory = ref([]);
+
+</script>
+
+<template>
+  <div id="chat-container">
+    <div id="chat-box" ref="chatBoxRef">
+      <div v-for="(msg, index) in conversationHistory" :key="index" :class="['message', msg.displayRole === 'user' ? 'user-message' : 'bot-message']">
+        <div class="content">
+          <img v-if="msg.image" :src="msg.image" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px;">
+          <div v-if="msg.content">{{ msg.content }}</div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="image-preview-container" v-if="currentImageBase64" style="display: flex;">
+      <img id="image-preview" :src="currentImageBase64" alt="Image Preview">
+      <button id="clear-image" @click="clearImage">×</button>
+    </div>
+
+    <div id="input-area">
+      <input type="file" ref="imageInputRef" accept="image/*" style="display: none;" @change="handleImageChange">
+      <button id="upload-button" title="上传图片" @click="triggerImageUpload">📎</button>
+      <input type="text" id="chat-input" v-model="chatInput" placeholder="输入消息..." @keypress.enter="sendMessage">
+      <button id="send-button" :disabled="!canSend" @click="sendMessage">发送</button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+#chat-container {
+    width: 826px;
+    /* Fixed width (1200 - 350 - 24 gap) */
+    height: 100%;
+    /* Fill parent height */
+    display: flex;
+    flex-direction: column;
+    background-color: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    border: 1px solid #f0f0f0;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    /* Prevent shrinking */
+}
+
+#chat-box {
+    flex-grow: 1;
+    padding: 30px;
+    overflow-y: auto;
+    background-color: #ffffff;
+    background-image: radial-gradient(#f3f4f6 1px, transparent 1px);
+    background-size: 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.message {
+    display: flex;
+    flex-direction: column;
+    max-width: 75%;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.user-message {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.bot-message {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.message .content {
+    padding: 14px 20px;
+    border-radius: 18px;
+    font-size: 1rem;
+    line-height: 1.6;
+    position: relative;
+    word-wrap: break-word;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.user-message .content {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.bot-message .content {
+    background-color: #ffffff;
+    color: #1f2937;
+    border: 1px solid #e5e7eb;
+    border-bottom-left-radius: 4px;
+}
+
+#input-area {
+    padding: 24px;
+    background-color: #ffffff;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+#chat-input {
+    flex-grow: 1;
+    padding: 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 14px;
+    font-size: 1rem;
+    outline: none;
+    transition: all 0.2s ease;
+    background-color: #f9fafb;
+    color: #1f2937;
+}
+
+#chat-input:focus {
+    border-color: #6366f1;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+#send-button {
+    padding: 16px 28px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+#send-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+}
+
+#send-button:active {
+    transform: translateY(0);
+}
+
+#send-button:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+#upload-button {
+    padding: 12px;
+    background-color: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#upload-button:hover {
+    background-color: #e5e7eb;
+    color: #1f2937;
+}
+
+#image-preview-container {
+    display: none;
+    padding: 10px 20px 0;
+    background-color: #fff;
+    align-items: center;
+    gap: 10px;
+}
+
+#image-preview {
+    max-height: 80px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+#clear-image {
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+#clear-image:hover {
+    background-color: #fee2e2;
+}
+</style>
