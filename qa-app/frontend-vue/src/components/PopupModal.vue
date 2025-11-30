@@ -7,8 +7,8 @@ const dialogVisible = ref(true)
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="提示"
-    width="500"
+    title="温馨提示"
+    width="50%"
     :show-close="true"
     align-center
   >

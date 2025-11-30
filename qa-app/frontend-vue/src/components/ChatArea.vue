@@ -136,7 +136,11 @@ const sendMessage = async () => {
     behavioralTraits: props.characterSettings.behavioralTraits,
     identityBackground: props.characterSettings.identityBackground,
     personalityTraits: props.characterSettings.personalityTraits,
-    languageStyle: props.characterSettings.languageStyle
+    languageStyle: props.characterSettings.languageStyle,
+    gender: props.characterSettings.gender,
+    likedItems: props.characterSettings.likedItems,
+    dislikedItems: props.characterSettings.dislikedItems,
+    userNickname: props.characterSettings.userNickname
   }
 
   try {
@@ -190,7 +194,7 @@ const apiHistory = ref([])
           alignItems: 'flex-start',
           flexDirection: msg.displayRole === 'user' ? 'row-reverse' : 'row',
           alignSelf: msg.displayRole === 'user' ? 'flex-end' : 'flex-start',
-          maxWidth: '70%'
+          maxWidth: '80%'
         }"
       >
         <!-- 头像 -->

@@ -19,7 +19,8 @@ if (!apiKey) {
 }
 
 app.post('/qa', async (req, res) => {
-  const { question, history, roleName, behavioralTraits, identityBackground, personalityTraits, languageStyle, image } = req.body;
+  const { question, history, image, roleName, behavioralTraits, identityBackground, personalityTraits, languageStyle, gender, likedItems, dislikedItems, userNickname } = req.body;
+  console.log("Calling API with model:", MODEL);
 
   if (!question && !image) {
     return res.status(400).json({ error: '问题或图片不能为空' });
@@ -28,13 +29,17 @@ app.post('/qa', async (req, res) => {
   let messages = [];
 
   let systemPrompt = "你是一个善于进行角色扮演的智能助手；";
-  if (roleName || behavioralTraits || identityBackground || personalityTraits || languageStyle) {
+  if (roleName || behavioralTraits || identityBackground || personalityTraits || languageStyle || gender || likedItems || dislikedItems || userNickname) {
     systemPrompt += `\n以下是有关于该角色的一些信息，请扮演以下角色:\n`;
     if (roleName) systemPrompt += `- 角色名称: ${roleName}\n`;
+    if (gender) systemPrompt += `- 性别: ${gender}\n`;
     if (identityBackground) systemPrompt += `- 身份背景: ${identityBackground}\n`;
     if (personalityTraits) systemPrompt += `- 性格特征: ${personalityTraits}\n`;
     if (languageStyle) systemPrompt += `- 语言风格: ${languageStyle}\n`;
     if (behavioralTraits) systemPrompt += `- 行为特征: ${behavioralTraits}\n`;
+    if (likedItems) systemPrompt += `- 喜欢的物品: ${likedItems}\n`;
+    if (dislikedItems) systemPrompt += `- 讨厌的物品: ${dislikedItems}\n`;
+    if (userNickname) systemPrompt += `- 你应该称呼用户为: ${userNickname}\n`;
   }
 
   messages.push({ role: 'system', content: systemPrompt });

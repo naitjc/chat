@@ -11,7 +11,11 @@ const characterSettings = ref({
   behavioralTraits: '',
   identityBackground: '',
   personalityTraits: '',
-  languageStyle: ''
+  languageStyle: '',
+  gender: '',
+  likedItems: '',
+  dislikedItems: '',
+  userNickname: ''
 })
 
 const chatBackground = ref(null)
@@ -24,6 +28,10 @@ const handleCharacterSelect = (character) => {
       identityBackground: character.identityBackground,
       personalityTraits: character.personalityTraits,
       languageStyle: character.languageStyle,
+      gender: character.gender || '',
+      likedItems: character.likedItems || '',
+      dislikedItems: character.dislikedItems || '',
+      userNickname: character.userNickname || '',
       avatar: character.avatar // Pass avatar
     }
   } else {
@@ -33,7 +41,11 @@ const handleCharacterSelect = (character) => {
       behavioralTraits: '',
       identityBackground: '',
       personalityTraits: '',
-      languageStyle: ''
+      languageStyle: '',
+      gender: '',
+      likedItems: '',
+      dislikedItems: '',
+      userNickname: ''
     }
   }
 }
@@ -69,14 +81,17 @@ const handleBackgroundUpdate = (background) => {
 #app-root {
   width: 100%;
   height: 100vh;
+  overflow: hidden;
 }
 
 :deep(.el-container) {
   box-sizing: border-box;
+  height: 100%;
 }
 
 :deep(.el-main) {
   overflow: hidden;
+  padding: 0;
 }
 
 @media (max-width: 800px) {

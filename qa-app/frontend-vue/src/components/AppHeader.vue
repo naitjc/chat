@@ -57,7 +57,7 @@ const handleBackgroundChange = (e) => {
             v-for="char in characters"
             :key="char.id"
             :value="char.id"
-            :label="char.name"
+            :label="char.roleName"
           />
         </el-select>
       </div>
