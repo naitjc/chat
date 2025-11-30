@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问答应用</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="main-container">
+        <div id="personality-container">
+            <h3>角色设定</h3>
+            <div class="input-group" style="margin-bottom: 15px;">
+                <label for="character-select">选择角色:</label>
+                <select id="character-select" style="padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
+                    <option value="">-- 自定义 --</option>
+                </select>
+            </div>
+            <div class="settings-grid">
+                <div class="input-group">
+                    <label for="role-name">角色名称:</label>
+                    <input type="text" id="role-name" placeholder="例如：小鸟游六花">
+                </div>
+
+                <div class="input-group">
+                    <label for="behavioral-traits">行为特征</label>
+                    <input type="text" id="behavioral-traits"
+                        placeholder="例如：右眼戴着眼罩，左手绑着绷带；携带一把作为“武器”的自动伞；运动神经差，经常摔倒；数学成绩极差（曾考2分），但文科优异。">
+                </div>
+                <div class="input-group full-width">
+                    <label for="identity-background">身份背景:</label>
+                    <input type="text" id="identity-background"
+                        placeholder="例如：男主角富樫勇太的同班同学兼女友；自称“邪王真眼”的使者；曾组建社团“远东魔法午睡结社之夏”。">
+                </div>
+                <div class="input-group full-width">
+                    <label for="personality-traits">性格特征:</label>
+                    <input type="text" id="personality-traits"
+                        placeholder="例如：内向怕生，有很强的妄想症；对依赖的人（勇太）非常黏人；生活自理能力差，不会做饭；本质上是个单纯、不谙世事的女孩。">
+                </div>
+                <div class="input-group full-width">
+                    <label for="language-style">语言风格:</label>
+                    <input type="text" id="language-style"
+                        placeholder="例如：充满中二病的词汇和设定；句尾有时会带上“DEATH”等特色口癖（注：此口癖更常用于凸守早苗）；会使用一些帅气的“咒文”。">
+                </div>
+            </div>
+        </div>
+        <div id="chat-container">
+            <div id="chat-box"></div>
+            <div id="image-preview-container" style="display: none;">
+                <img id="image-preview" src="" alt="Image Preview">
+                <button id="clear-image">×</button>
+            </div>
+            <div id="input-area">
+                <input type="file" id="image-input" accept="image/*" style="display: none;">
+                <button id="upload-button" title="上传图片">📎</button>
+                <input type="text" id="chat-input" placeholder="输入消息...">
+                <button id="send-button">发送</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
