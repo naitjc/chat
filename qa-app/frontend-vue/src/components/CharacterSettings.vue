@@ -137,6 +137,10 @@ const onCharacterSelect = () => {
     border-bottom: 2px solid #f3f4f6;
     padding-bottom: 16px;
     letter-spacing: -0.025em;
+    position: sticky;
+    top: 0;
+    background-color: #ffffff;
+    z-index: 10;
 }
 
 .settings-grid {
