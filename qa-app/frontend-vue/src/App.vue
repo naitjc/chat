@@ -23,7 +23,8 @@ const handleCharacterSelect = (character) => {
       behavioralTraits: character.behavioralTraits,
       identityBackground: character.identityBackground,
       personalityTraits: character.personalityTraits,
-      languageStyle: character.languageStyle
+      languageStyle: character.languageStyle,
+      avatar: character.avatar // Pass avatar
     };
   } else {
     // Reset to empty if custom

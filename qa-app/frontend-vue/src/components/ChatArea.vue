@@ -57,6 +57,23 @@ const handleBotAvatarChange = (e) => {
   e.target.value = '';
 };
 
+// Watch for character changes to update avatar
+import { watch } from 'vue';
+watch(() => props.characterSettings, (newSettings) => {
+  if (newSettings.avatar) {
+    botAvatar.value = newSettings.avatar;
+  } else {
+    // Optional: Reset to default if no avatar provided (e.g. custom character)
+    // botAvatar.value = 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot';
+  }
+}, { deep: true });
+
+// Watch for role name changes to clear history
+watch(() => props.characterSettings.roleName, () => {
+  conversationHistory.value = [];
+  apiHistory.value = [];
+});
+
 const hasText = computed(() => chatInput.value.trim().length > 0);
 const hasImage = computed(() => currentImageBase64.value !== null);
 const canSend = computed(() => (hasText.value || hasImage.value) && !isSending.value);
@@ -91,8 +108,8 @@ const scrollToBottom = async () => {
 
 const addMessage = (role, content, image = null) => {
   conversationHistory.value.push({
-    role: role === 'user' ? 'user' : 'assistant', // Store as 'user' or 'assistant' for API history
-    displayRole: role, // 'user' or 'bot' for display styling
+    role: role === 'user' ? 'user' : 'assistant',
+    displayRole: role,
     content: content,
     image: image
   });
@@ -119,46 +136,7 @@ const sendMessage = async () => {
     history: conversationHistory.value.map(msg => ({
         role: msg.role,
         content: msg.content
-    })).slice(0, -1), // Exclude the just added message if we want history to be previous messages, but usually we include all previous. 
-    // Wait, the original code sends `conversationHistory` which accumulates responses.
-    // In original code: 
-    // addMessage('user'...) -> UI only
-    // payload.history = conversationHistory (which only contains 'assistant' responses pushed later? No, let's check original code)
-    
-    // Original code:
-    // let conversationHistory = [];
-    // addMessage('user'...) -> updates UI
-    // payload = { ... history: conversationHistory ... }
-    // fetch...
-    // addMessage('bot'...) -> updates UI
-    // conversationHistory.push({ role: 'assistant', content: answer });
-    
-    // So original code ONLY stores assistant responses in `conversationHistory` sent to backend?
-    // Let's re-read original script.js lines 161 and 186.
-    // Line 17: let conversationHistory = [];
-    // Line 161: history: conversationHistory
-    // Line 186: conversationHistory.push({ role: 'assistant', content: answer });
-    // It seems it ONLY sends assistant history? That's odd for a chat app, usually it sends the whole conversation.
-    // But I must replicate existing behavior unless it's a bug.
-    // If I look at line 186, it pushes `{ role: 'assistant', content: answer }`.
-    // It NEVER pushes user messages to `conversationHistory`.
-    // So the backend only receives previous assistant answers?
-    // I will stick to the original logic to be safe, or improve it if it looks like a clear bug.
-    // Given "qa-app", maybe it's just QA pairs? But "history" implies context.
-    // If the backend expects full history, the original code might be buggy.
-    // However, I should probably replicate "what it does" first.
-    // Wait, if I change it, I might break backend expectations if backend handles history merging.
-    // I will replicate the exact behavior: `conversationHistory` only tracks assistant responses.
-    
-    // Actually, looking at standard LLM usage, usually you send [user, assistant, user, assistant].
-    // If the original code only sent assistant messages, the context might be lost.
-    // But I am "migrating", so I should probably keep logic.
-    // Let's look at `conversationHistory` usage in original code.
-    // It is initialized empty.
-    // It is passed in payload.
-    // It is updated ONLY in `sendMessage` success block: `conversationHistory.push({ role: 'assistant', content: answer });`
-    // So yes, it only contains assistant messages.
-    
+    })),
     roleName: props.characterSettings.roleName,
     behavioralTraits: props.characterSettings.behavioralTraits,
     identityBackground: props.characterSettings.identityBackground,
@@ -184,11 +162,7 @@ const sendMessage = async () => {
 
     addMessage('bot', answer);
     
-    // Update history for next turn (only assistant messages as per original)
-    // But wait, if I use a local `conversationHistory` for UI, I need a separate one for API?
-    // In my Vue code, `conversationHistory` is used for v-for in template (UI).
-    // So I should separate UI messages from API history.
-    
+    // Update history for next turn
     apiHistory.value.push({ role: 'assistant', content: answer });
 
   } catch (error) {
