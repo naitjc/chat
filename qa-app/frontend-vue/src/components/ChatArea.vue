@@ -5,6 +5,10 @@ const props = defineProps({
   characterSettings: {
     type: Object,
     required: true
+  },
+  chatBackground: {
+    type: String,
+    default: null
   }
 });
 
@@ -14,6 +18,44 @@ const currentImageBase64 = ref(null);
 const isSending = ref(false);
 const chatBoxRef = ref(null);
 const imageInputRef = ref(null);
+const avatarInputRef = ref(null);
+const botAvatarInputRef = ref(null);
+
+// Avatar state
+const userAvatar = ref('https://api.dicebear.com/7.x/avataaars/svg?seed=Felix');
+const botAvatar = ref('https://api.dicebear.com/7.x/bottts/svg?seed=Robot');
+
+const triggerAvatarUpload = () => {
+  avatarInputRef.value.click();
+};
+
+const handleAvatarChange = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e_reader) => {
+      userAvatar.value = e_reader.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  e.target.value = '';
+};
+
+const triggerBotAvatarUpload = () => {
+  botAvatarInputRef.value.click();
+};
+
+const handleBotAvatarChange = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e_reader) => {
+      botAvatar.value = e_reader.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  e.target.value = '';
+};
 
 const hasText = computed(() => chatInput.value.trim().length > 0);
 const hasImage = computed(() => currentImageBase64.value !== null);
@@ -164,14 +206,26 @@ const apiHistory = ref([]);
 
 <template>
   <div id="chat-container">
-    <div id="chat-box" ref="chatBoxRef">
-      <div v-for="(msg, index) in conversationHistory" :key="index" :class="['message', msg.displayRole === 'user' ? 'user-message' : 'bot-message']">
-        <div class="content">
-          <img v-if="msg.image" :src="msg.image" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px;">
-          <div v-if="msg.content">{{ msg.content }}</div>
+    <div id="chat-box" ref="chatBoxRef" :style="chatBackground ? { backgroundImage: `url(${chatBackground})`, backgroundSize: '100% 100%', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' } : {}">
+      <div v-for="(msg, index) in conversationHistory" :key="index" :class="['message-row', msg.displayRole === 'user' ? 'user-row' : 'bot-row']">
+        <img 
+          :src="msg.displayRole === 'user' ? userAvatar : botAvatar" 
+          class="avatar clickable" 
+          @click="msg.displayRole === 'user' ? triggerAvatarUpload() : triggerBotAvatarUpload()"
+          :title="msg.displayRole === 'user' ? '点击更换头像' : '点击更换AI头像'"
+        >
+        <div :class="['message', msg.displayRole === 'user' ? 'user-message' : 'bot-message']">
+          <div class="content">
+            <img v-if="msg.image" :src="msg.image" style="max-width: 100%; border-radius: 8px; margin-bottom: 8px;">
+            <div v-if="msg.content">{{ msg.content }}</div>
+          </div>
         </div>
       </div>
     </div>
+    
+    <!-- Hidden avatar inputs -->
+    <input type="file" ref="avatarInputRef" accept="image/*" style="display: none;" @change="handleAvatarChange">
+    <input type="file" ref="botAvatarInputRef" accept="image/*" style="display: none;" @change="handleBotAvatarChange">
     
     <div id="image-preview-container" v-if="currentImageBase64" style="display: flex;">
       <img id="image-preview" :src="currentImageBase64" alt="Image Preview">
@@ -189,10 +243,7 @@ const apiHistory = ref([]);
 
 <style scoped>
 #chat-container {
-    width: 826px;
-    /* Fixed width (1200 - 350 - 24 gap) */
-    height: 100%;
-    /* Fill parent height */
+    flex: 1;
     display: flex;
     flex-direction: column;
     background-color: #ffffff;
@@ -201,14 +252,14 @@ const apiHistory = ref([]);
     overflow: hidden;
     border: 1px solid #f0f0f0;
     box-sizing: border-box;
-    flex-shrink: 0;
-    /* Prevent shrinking */
+    min-width: 0;
 }
 
 #chat-box {
-    flex-grow: 1;
+    flex: 1;
     padding: 30px;
     overflow-y: auto;
+    scrollbar-gutter: stable;
     background-color: #ffffff;
     background-image: radial-gradient(#f3f4f6 1px, transparent 1px);
     background-size: 20px 20px;
@@ -217,33 +268,47 @@ const apiHistory = ref([]);
     gap: 20px;
 }
 
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e5e7eb;
+    flex-shrink: 0;
+    background-color: #fff;
+}
+
+.avatar.clickable {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.avatar.clickable:hover {
+    transform: scale(1.1);
+    border-color: #6366f1;
+}
+
+.message-row {
+    display: flex;
+    gap: 12px;
+    max-width: 80%;
+    align-items: flex-start;
+}
+
+.user-row {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.bot-row {
+    align-self: flex-start;
+    flex-direction: row;
+}
+
 .message {
     display: flex;
     flex-direction: column;
-    max-width: 75%;
     animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.user-message {
-    align-self: flex-end;
-    align-items: flex-end;
-}
-
-.bot-message {
-    align-self: flex-start;
-    align-items: flex-start;
 }
 
 .message .content {

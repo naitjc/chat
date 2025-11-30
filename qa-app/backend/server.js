@@ -5,7 +5,6 @@ const cors = require('cors');
 
 const path = require('path');
 const app = express();
-const port = 8888;
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
@@ -86,6 +85,8 @@ app.post('/qa', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`后端服务器运行在 http://localhost:${port}`);
+const port = process.env.PORT || 8888;
+
+const server = app.listen(port, () => {
+  console.log(`后端服务器运行在 http://localhost:${server.address().port}`);
 });

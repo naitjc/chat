@@ -17,9 +17,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 
-const characters = ref([]);
-const selectedCharacterId = ref('');
-
 // Local state to bind inputs, sync with props
 const localSettings = ref({ ...props.modelValue });
 
@@ -30,55 +27,11 @@ watch(() => props.modelValue, (newValue) => {
 watch(localSettings, (newValue) => {
   emit('update:modelValue', newValue);
 }, { deep: true });
-
-onMounted(async () => {
-  try {
-    const response = await fetch('/characters.json');
-    if (response.ok) {
-      characters.value = await response.json();
-    } else {
-      console.error('Failed to load characters');
-    }
-  } catch (error) {
-    console.error('Error loading characters:', error);
-  }
-});
-
-const onCharacterSelect = () => {
-  const selectedChar = characters.value.find(c => c.id === selectedCharacterId.value);
-  if (selectedChar) {
-    localSettings.value = {
-      roleName: selectedChar.roleName,
-      behavioralTraits: selectedChar.behavioralTraits,
-      identityBackground: selectedChar.identityBackground,
-      personalityTraits: selectedChar.personalityTraits,
-      languageStyle: selectedChar.languageStyle
-    };
-  } else {
-    // Reset to empty if custom or not found
-    localSettings.value = {
-      roleName: '',
-      behavioralTraits: '',
-      identityBackground: '',
-      personalityTraits: '',
-      languageStyle: ''
-    };
-  }
-};
 </script>
 
 <template>
   <div id="personality-container">
     <h3>角色设定</h3>
-    <div class="input-group" style="margin-bottom: 15px;">
-      <label for="character-select">选择角色:</label>
-      <select id="character-select" v-model="selectedCharacterId" @change="onCharacterSelect" style="padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-        <option value="">-- 自定义 --</option>
-        <option v-for="char in characters" :key="char.id" :value="char.id">
-          {{ char.name }}
-        </option>
-      </select>
-    </div>
     <div class="settings-grid">
       <div class="input-group">
         <label for="role-name">角色名称:</label>
@@ -111,8 +64,9 @@ const onCharacterSelect = () => {
 
 <style scoped>
 #personality-container {
-    width: 350px;
-    /* Fixed width */
+    width: 25%;
+    min-width: 300px;
+    /* Percentage based width */
     height: 100%;
     /* Fill parent height */
     background-color: #ffffff;
@@ -126,6 +80,15 @@ const onCharacterSelect = () => {
     box-sizing: border-box;
     flex-shrink: 0;
     /* Prevent shrinking */
+}
+
+@media (max-width: 800px) {
+    #personality-container {
+        width: 100%;
+        height: auto;
+        max-height: 300px;
+        flex-shrink: 1;
+    }
 }
 
 #personality-container h3 {
