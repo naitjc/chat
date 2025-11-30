@@ -1,10 +1,10 @@
 <script setup>
-import { ref } from 'vue';
-import AppHeader from './components/AppHeader.vue';
-import CharacterSettings from './components/CharacterSettings.vue';
-import ChatArea from './components/ChatArea.vue';
-import SnowEffect from './components/SnowEffect.vue';
-import PopupModal from './components/PopupModal.vue';
+import { ref } from 'vue'
+import AppHeader from './components/AppHeader.vue'
+import CharacterSettings from './components/CharacterSettings.vue'
+import ChatArea from './components/ChatArea.vue'
+import SnowEffect from './components/SnowEffect.vue'
+import PopupModal from './components/PopupModal.vue'
 
 const characterSettings = ref({
   roleName: '',
@@ -12,9 +12,9 @@ const characterSettings = ref({
   identityBackground: '',
   personalityTraits: '',
   languageStyle: ''
-});
+})
 
-const chatBackground = ref(null);
+const chatBackground = ref(null)
 
 const handleCharacterSelect = (character) => {
   if (character) {
@@ -25,7 +25,7 @@ const handleCharacterSelect = (character) => {
       personalityTraits: character.personalityTraits,
       languageStyle: character.languageStyle,
       avatar: character.avatar // Pass avatar
-    };
+    }
   } else {
     // Reset to empty if custom
     characterSettings.value = {
@@ -34,65 +34,55 @@ const handleCharacterSelect = (character) => {
       identityBackground: '',
       personalityTraits: '',
       languageStyle: ''
-    };
+    }
   }
-};
+}
 
 const handleBackgroundUpdate = (background) => {
-  chatBackground.value = background;
-};
+  chatBackground.value = background
+}
 </script>
 
 <template>
   <div id="app-root">
     <PopupModal />
     <SnowEffect />
-    <AppHeader 
-      @select-character="handleCharacterSelect"
-      @update-background="handleBackgroundUpdate"
-    />
-    <div id="main-container">
-      <CharacterSettings v-model="characterSettings" />
-      <ChatArea 
-        :characterSettings="characterSettings" 
-        :chatBackground="chatBackground"
+    
+    <el-container direction="vertical" style="height: 100vh; padding: 20px;">
+      <AppHeader 
+        @select-character="handleCharacterSelect"
+        @update-background="handleBackgroundUpdate"
       />
-    </div>
+      
+      <el-main style="padding: 0; display: flex; gap: 20px; flex: 1; min-height: 0;">
+        <CharacterSettings v-model="characterSettings" />
+        <ChatArea 
+          :characterSettings="characterSettings" 
+          :chatBackground="chatBackground"
+        />
+      </el-main>
+    </el-container>
   </div>
 </template>
 
 <style scoped>
 #app-root {
-  display: flex;
-  flex-direction: column;
+  width: 100%;
   height: 100vh;
-  padding: 20px;
+}
+
+:deep(.el-container) {
   box-sizing: border-box;
 }
 
-#main-container {
-    display: flex;
-    gap: 24px;
-    width: 100%;
-    min-width: 0;
-    max-width: none;
-    flex: 1; /* Fill remaining height */
-    min-height: 0; /* Allow shrinking */
-    margin: 0 auto;
+:deep(.el-main) {
+  overflow: hidden;
 }
 
 @media (max-width: 800px) {
-    #main-container {
-        flex-direction: column;
-        height: auto;
-        width: 100%;
-        padding: 0;
-        gap: 10px;
-    }
-    
-    #app-root {
-      height: auto;
-      min-height: 100vh;
-    }
+  :deep(.el-main) {
+    flex-direction: column;
+    overflow-y: auto;
+  }
 }
 </style>
