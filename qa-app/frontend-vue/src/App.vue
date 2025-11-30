@@ -3,6 +3,8 @@ import { ref } from 'vue';
 import AppHeader from './components/AppHeader.vue';
 import CharacterSettings from './components/CharacterSettings.vue';
 import ChatArea from './components/ChatArea.vue';
+import SnowEffect from './components/SnowEffect.vue';
+import PopupModal from './components/PopupModal.vue';
 
 const characterSettings = ref({
   roleName: '',
@@ -42,6 +44,8 @@ const handleBackgroundUpdate = (background) => {
 
 <template>
   <div id="app-root">
+    <PopupModal />
+    <SnowEffect />
     <AppHeader 
       @select-character="handleCharacterSelect"
       @update-background="handleBackgroundUpdate"
