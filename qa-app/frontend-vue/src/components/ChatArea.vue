@@ -61,6 +61,9 @@ const handleBotAvatarChange = (e) => {
 watch(() => props.characterSettings, (newSettings) => {
   if (newSettings.avatar) {
     botAvatar.value = newSettings.avatar
+  } else {
+    // Reset to default when no avatar (custom character)
+    botAvatar.value = 'https://api.dicebear.com/7.x/bottts/svg?seed=Robot'
   }
 }, { deep: true })
 
