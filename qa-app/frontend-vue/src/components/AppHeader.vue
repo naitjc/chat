@@ -59,7 +59,7 @@ const handleBackgroundChange = (e) => {
     <div class="header-right">
       <input type="file" ref="backgroundInputRef" accept="image/*" style="display: none;" @change="handleBackgroundChange">
       <button id="bg-button" title="设置聊天背景" @click="triggerBackgroundUpload">
-        🎨 设置背景
+        🎨 设置聊天背景
       </button>
     </div>
   </div>

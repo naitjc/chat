@@ -319,19 +319,52 @@ const apiHistory = ref([]);
     position: relative;
     word-wrap: break-word;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    overflow: visible;
 }
 
 .user-message .content {
     background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
     color: white;
-    border-bottom-right-radius: 4px;
+}
+
+.user-message .content::after {
+    content: '';
+    position: absolute;
+    right: -10px;
+    top: 15px;
+    border-width: 10px 0 10px 12px;
+    border-style: solid;
+    border-color: transparent transparent transparent #4f46e5;
 }
 
 .bot-message .content {
-    background-color: #ffffff;
-    color: #1f2937;
-    border: 1px solid #e5e7eb;
-    border-bottom-left-radius: 4px;
+    background-color: #374151;
+    color: #ffffff;
+    border: 1px solid #1f2937;
+}
+
+/* Bot Tail Border */
+.bot-message .content::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 15px;
+    border-width: 10px 12px 10px 0;
+    border-style: solid;
+    border-color: transparent #1f2937 transparent transparent;
+    z-index: 0;
+}
+
+/* Bot Tail Fill */
+.bot-message .content::after {
+    content: '';
+    position: absolute;
+    left: -11px;
+    top: 15px;
+    border-width: 10px 12px 10px 0;
+    border-style: solid;
+    border-color: transparent #374151 transparent transparent;
+    z-index: 1;
 }
 
 #input-area {
