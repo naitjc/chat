@@ -6,6 +6,8 @@ const cors = require('cors');
 const path = require('path');
 const app = express();
 
+const MODEL = process.env.MODEL
+
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '../frontend-vue/dist'))); // Serve static files from Vue build
@@ -20,7 +22,6 @@ if (!apiKey) {
 
 app.post('/qa', async (req, res) => {
   const { question, history, image, roleName, behavioralTraits, identityBackground, personalityTraits, languageStyle, gender, likedItems, dislikedItems, userNickname } = req.body;
-  console.log("Calling API with model:", MODEL);
 
   if (!question && !image) {
     return res.status(400).json({ error: '问题或图片不能为空' });
