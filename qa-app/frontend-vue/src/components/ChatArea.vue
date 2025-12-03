@@ -22,7 +22,7 @@ const avatarInputRef = ref(null)
 const botAvatarInputRef = ref(null)
 
 // Avatar state
-const userAvatar = ref('https://api.dicebear.com/7.x/avataaars/svg?seed=Felix')
+const userAvatar = ref('https://example.com/my-face.jpg')
 const botAvatar = ref('https://api.dicebear.com/7.x/bottts/svg?seed=Robot')
 
 const triggerAvatarUpload = () => {

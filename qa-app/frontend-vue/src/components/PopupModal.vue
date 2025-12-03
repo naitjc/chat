@@ -14,7 +14,7 @@ const dialogVisible = ref(true)
   >
     <div style="text-align: center;">
       <el-image
-        src="/src/assets/OIP-C.webp"
+        src="/OIP-C.webp"
         style="width: 300px; border-radius: 8px; margin-bottom: 20px;"
         fit="contain"
       />

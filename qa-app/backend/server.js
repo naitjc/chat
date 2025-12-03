@@ -22,6 +22,7 @@ if (!apiKey) {
 
 app.post('/qa', async (req, res) => {
   const { question, history, image, roleName, behavioralTraits, identityBackground, personalityTraits, languageStyle, gender, likedItems, dislikedItems, userNickname } = req.body;
+  console.log("Calling API with model:", MODEL);
 
   if (!question && !image) {
     return res.status(400).json({ error: '问题或图片不能为空' });
