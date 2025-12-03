@@ -25,6 +25,10 @@ const botAvatarInputRef = ref(null)
 const userAvatar = ref('https://example.com/my-face.jpg')
 const botAvatar = ref('https://api.dicebear.com/7.x/bottts/svg?seed=Robot')
 
+// Model parameters
+const temperature = ref(0.7)
+const top_p = ref(0.9)
+
 const triggerAvatarUpload = () => {
   avatarInputRef.value.click()
 }
@@ -143,7 +147,11 @@ const sendMessage = async () => {
     gender: props.characterSettings.gender,
     likedItems: props.characterSettings.likedItems,
     dislikedItems: props.characterSettings.dislikedItems,
-    userNickname: props.characterSettings.userNickname
+    likedItems: props.characterSettings.likedItems,
+    dislikedItems: props.characterSettings.dislikedItems,
+    userNickname: props.characterSettings.userNickname,
+    temperature: temperature.value,
+    top_p: top_p.value
   }
 
   try {
@@ -249,6 +257,26 @@ const apiHistory = ref([])
 
     <!-- 输入区域 -->
     <div style="padding: 16px 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 12px; align-items: center;">
+      <el-popover
+        placement="top"
+        title="模型参数设置"
+        :width="300"
+        trigger="click"
+      >
+        <template #reference>
+          <el-button :icon="'Setting'" circle title="模型设置" />
+        </template>
+        <div style="padding: 10px;">
+          <div style="margin-bottom: 15px;">
+            <span style="display: block; margin-bottom: 5px; font-size: 14px;">Temperature ({{ temperature }})</span>
+            <el-slider v-model="temperature" :min="0" :max="1" :step="0.1" show-tooltip />
+          </div>
+          <div>
+            <span style="display: block; margin-bottom: 5px; font-size: 14px;">Top P ({{ top_p }})</span>
+            <el-slider v-model="top_p" :min="0" :max="1" :step="0.1" show-tooltip />
+          </div>
+        </div>
+      </el-popover>
       <el-button :icon="'Paperclip'" circle @click="triggerImageUpload" title="上传图片" />
       <el-input
         v-model="chatInput"

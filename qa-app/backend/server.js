@@ -21,8 +21,9 @@ if (!apiKey) {
 }
 
 app.post('/qa', async (req, res) => {
-  const { question, history, image, roleName, behavioralTraits, identityBackground, personalityTraits, languageStyle, gender, likedItems, dislikedItems, userNickname } = req.body;
+  const { question, history, image, roleName, behavioralTraits, identityBackground, personalityTraits, languageStyle, gender, likedItems, dislikedItems, userNickname, temperature, top_p } = req.body;
   console.log("Calling API with model:", MODEL);
+  console.log(`Parameters - Temperature: ${temperature ?? 0.7}, Top-P: ${top_p ?? 0.9}`);
 
   if (!question && !image) {
     return res.status(400).json({ error: '问题或图片不能为空' });
@@ -71,7 +72,9 @@ app.post('/qa', async (req, res) => {
       {
         model: "GLM-4.5V",
         messages: messages,
-        stream: false
+        stream: false,
+        temperature: temperature ?? 0.7,
+        top_p: top_p ?? 0.9
       },
       {
         headers: {
