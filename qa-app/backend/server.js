@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '../frontend-vue/dist'))); // Serve static files from Vue build
 
-const apiKey = process.env.GLM_API_KEY || "sk-1KHilQYuk8RNIBsoC695170b33234435Af6bB7Cc7f46A188";
+const apiKey = process.env.GLM_API_KEY;
 const apiURL = "https://api.edgefn.net/v1/chat/completions";
 
 if (!apiKey) {
@@ -22,7 +22,11 @@ if (!apiKey) {
 
 app.post('/qa', async (req, res) => {
   const { question, history, image, roleName, behavioralTraits, identityBackground, personalityTraits, languageStyle, gender, likedItems, dislikedItems, userNickname, temperature, top_p } = req.body;
-  console.log("Calling API with model:", MODEL);
+
+  // Use MODEL from env or default to GLM-4.5V if not set (though .env should ideally have it)
+  const modelToUse = process.env.MODEL || "GLM-4.5V";
+
+  console.log("Calling API with model:", modelToUse);
   console.log(`Parameters - Temperature: ${temperature ?? 0.7}, Top-P: ${top_p ?? 0.9}`);
 
   if (!question && !image) {
@@ -66,11 +70,10 @@ app.post('/qa', async (req, res) => {
   ]);
 
   try {
-    console.log("Calling API with model: GLM-4.5V");
     const response = await axios.post(
       apiURL,
       {
-        model: "GLM-4.5V",
+        model: modelToUse,
         messages: messages,
         stream: false,
         temperature: temperature ?? 0.7,
