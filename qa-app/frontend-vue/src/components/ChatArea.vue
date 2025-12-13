@@ -135,7 +135,7 @@ const sendMessage = async () => {
   const payload = {
     question: question,
     image: imageToSend,
-    history: conversationHistory.value.map(msg => ({
+    history: apiHistory.value.map(msg => ({
         role: msg.role,
         content: msg.content
     })),
@@ -145,8 +145,6 @@ const sendMessage = async () => {
     personalityTraits: props.characterSettings.personalityTraits,
     languageStyle: props.characterSettings.languageStyle,
     gender: props.characterSettings.gender,
-    likedItems: props.characterSettings.likedItems,
-    dislikedItems: props.characterSettings.dislikedItems,
     likedItems: props.characterSettings.likedItems,
     dislikedItems: props.characterSettings.dislikedItems,
     userNickname: props.characterSettings.userNickname,
@@ -170,10 +168,18 @@ const sendMessage = async () => {
     const data = await response.json()
     const answer = data.answer
 
+    // Always append new answer to UI history to keep it complete/connected
     addMessage('bot', answer)
-    
-    // Update history for next turn
-    apiHistory.value.push({ role: 'assistant', content: answer })
+
+    // Update API history with the backend's returned state (potentially compressed)
+    // The backend now returns the full history for the *next* turn, including the msg we just sent and the answer we just got.
+    if (data.history) {
+      console.log('Updating API history from backend. Length:', data.history.length)
+      apiHistory.value = [...data.history]
+    } else {
+        // Fallback if backend doesn't return history (shouldn't happen with new backend code)
+        apiHistory.value.push({ role: 'assistant', content: answer })
+    }
 
   } catch (error) {
     console.error('请求失败:', error)

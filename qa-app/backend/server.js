@@ -64,9 +64,36 @@ app.post('/qa', async (req, res) => {
     });
   }
 
+  // Ensure history is an array
+  let currentHistory = Array.isArray(history) ? history : [];
+
+  // Check if history needs compression (e.g., > 10 messages = 5 turns)
+  if (currentHistory.length >= 10) {
+    console.log("History length:", currentHistory.length, "- Triggering compression");
+    try {
+      // Keep the last 2 messages (1 turn) intact
+      const recentMessages = currentHistory.slice(-2);
+      // Summarize the rest
+      const messagesToSummarize = currentHistory.slice(0, -2);
+
+      const summary = await summarizeHistory(messagesToSummarize, apiKey, modelToUse);
+
+      // Construct new history: Summary + Recent Messages
+      currentHistory = [
+        { role: 'system', content: `[前情提要] ${summary}` },
+        ...recentMessages
+      ];
+      console.log("Compression complete. New history length:", currentHistory.length);
+    } catch (err) {
+      console.error("Compression failed, continuing with full history:", err.message);
+    }
+  }
+
+  const currentUserMessage = { role: 'user', content: userContent };
+
   messages = messages.concat([
-    ...(history || []),
-    { role: 'user', content: userContent }
+    ...currentHistory,
+    currentUserMessage
   ]);
 
   try {
@@ -88,7 +115,21 @@ app.post('/qa', async (req, res) => {
     );
 
     if (response.data.choices && response.data.choices.length > 0) {
-      res.json({ answer: response.data.choices[0].message.content });
+      const answer = response.data.choices[0].message.content;
+      const currentBotMessage = { role: 'assistant', content: answer };
+
+      // Return the fully updated history for the *next* turn:
+      // Compressed Past + Current User Msg + Current Bot Msg
+      const nextApiHistory = [
+        ...currentHistory,
+        currentUserMessage,
+        currentBotMessage
+      ];
+
+      res.json({
+        answer: answer,
+        history: nextApiHistory
+      });
     } else {
       res.status(500).json({ error: '从API收到的响应无效' });
     }
@@ -97,6 +138,36 @@ app.post('/qa', async (req, res) => {
     res.status(500).json({ error: '调用大模型API失败' });
   }
 });
+
+// Helper function to summarize history
+async function summarizeHistory(messages, apiKey, model) {
+  const summaryPrompt = "请简要总结上述对话的内容，保留关键信息，字数控制在200字以内。";
+  const summaryMessages = [
+    ...messages,
+    { role: 'user', content: summaryPrompt }
+  ];
+
+  try {
+    const response = await axios.post(
+      "https://api.edgefn.net/v1/chat/completions",
+      {
+        model: model,
+        messages: summaryMessages,
+        stream: false
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data.choices[0].message.content;
+  } catch (error) {
+    console.error("Error summarizing history:", error.message);
+    throw error;
+  }
+}
 
 const port = process.env.PORT || 8888;
 
