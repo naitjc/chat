@@ -60,7 +60,7 @@ const handleBackgroundUpdate = (background) => {
     <PopupModal />
     <SnowEffect />
     
-    <el-container direction="vertical" style="height: 100vh; padding: 20px;">
+    <el-container direction="vertical" style="height: 85vh; width: 100%; max-width: 85vw; margin: 0; padding: 0;">
       <AppHeader 
         @select-character="handleCharacterSelect"
         @update-background="handleBackgroundUpdate"
@@ -82,6 +82,11 @@ const handleBackgroundUpdate = (background) => {
   width: 100%;
   height: 100vh;
   overflow: hidden;
+  background: linear-gradient(180deg, #dce9f5 0%, #c5d8ef 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 :deep(.el-container) {

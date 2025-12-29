@@ -74,9 +74,12 @@ const handleBackgroundChange = (e) => {
 
 <style scoped>
 :deep(.el-header) {
-  background-color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
   margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 </style>

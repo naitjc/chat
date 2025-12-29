@@ -35,7 +35,7 @@ class Snowflake {
 
   draw(ctx) {
     ctx.font = `${this.size}px serif`;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.fillStyle = 'rgba(160, 216, 255, 0.9)';
     ctx.fillText(this.char, this.x, this.y);
   }
 }

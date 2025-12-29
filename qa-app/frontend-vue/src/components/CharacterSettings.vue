@@ -121,26 +121,62 @@ watch(localSettings, (newValue) => {
 
 <style scoped>
 .character-settings-card {
-  width: 25%;
-  min-width: 300px;
+  width: 20%;
+  min-width: 240px;
   height: 100%;
   flex-shrink: 0;
 }
 
 :deep(.el-card) {
   height: 100%;
+  background: rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
 }
 
 :deep(.el-card__header) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
+  color: #2c3e50;
   padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 :deep(.el-card__body) {
   height: calc(100% - 60px);
   overflow-y: auto;
   overflow-x: hidden;
+  padding: 20px;
+}
+
+/* Custom Scrollbar */
+:deep(.el-card__body)::webkit-scrollbar {
+  width: 6px;
+}
+
+:deep(.el-card__body)::webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+:deep(.el-card__body)::webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* Input Styles */
+:deep(.el-input__wrapper), :deep(.el-textarea__inner) {
+  box-shadow: 0 0 0 1px #dcdfe6 inset;
+  border-radius: 8px;
+  transition: all 0.3sease;
+}
+
+:deep(.el-input__wrapper:hover), :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px #c0c4cc inset;
+}
+
+:deep(.el-input__wrapper.is-focus), :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 1px #409eff inset !important; 
 }
 
 @media (max-width: 800px) {
