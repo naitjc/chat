@@ -1,57 +1,19 @@
 <script setup>
-import { ref } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import CharacterSettings from './components/CharacterSettings.vue'
 import ChatArea from './components/ChatArea.vue'
 import SnowEffect from './components/SnowEffect.vue'
 import PopupModal from './components/PopupModal.vue'
+import { useChatStore } from './store/chatStore'
 
-const characterSettings = ref({
-  roleName: '',
-  behavioralTraits: '',
-  identityBackground: '',
-  personalityTraits: '',
-  languageStyle: '',
-  gender: '',
-  likedItems: '',
-  dislikedItems: '',
-  userNickname: ''
-})
-
-const chatBackground = ref(null)
+const chatStore = useChatStore()
 
 const handleCharacterSelect = (character) => {
-  if (character) {
-    characterSettings.value = {
-      roleName: character.roleName,
-      behavioralTraits: character.behavioralTraits,
-      identityBackground: character.identityBackground,
-      personalityTraits: character.personalityTraits,
-      languageStyle: character.languageStyle,
-      gender: character.gender || '',
-      likedItems: character.likedItems || '',
-      dislikedItems: character.dislikedItems || '',
-      userNickname: character.userNickname || '',
-      avatar: character.avatar // Pass avatar
-    }
-  } else {
-    // Reset to empty if custom
-    characterSettings.value = {
-      roleName: '',
-      behavioralTraits: '',
-      identityBackground: '',
-      personalityTraits: '',
-      languageStyle: '',
-      gender: '',
-      likedItems: '',
-      dislikedItems: '',
-      userNickname: ''
-    }
-  }
+  chatStore.setCharacter(character)
 }
 
 const handleBackgroundUpdate = (background) => {
-  chatBackground.value = background
+  chatStore.setChatBackground(background)
 }
 </script>
 
@@ -67,11 +29,8 @@ const handleBackgroundUpdate = (background) => {
       />
       
       <el-main style="padding: 0; display: flex; gap: 20px; flex: 1; min-height: 0;">
-        <CharacterSettings v-model="characterSettings" />
-        <ChatArea 
-          :characterSettings="characterSettings" 
-          :chatBackground="chatBackground"
-        />
+        <CharacterSettings />
+        <ChatArea />
       </el-main>
     </el-container>
   </div>

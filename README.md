@@ -33,9 +33,10 @@
 
 ### 前端
 - **框架**: Vue 3 (Composition API)
+- **状态管理**: Pinia
 - **UI 库**: Element Plus
 - **构建工具**: Vite 7
-- **HTTP 客户端**: 原生 Fetch API
+- **HTTP 客户端**: Axios
 
 ### 后端
 - **运行时**: Node.js 20+
@@ -70,13 +71,13 @@ npm install
 创建 `.env` 文件并配置：
 
 ```env
-# 必填：GLM API 密钥
-GLM_API_KEY=your_api_key_here
+# 必填：API 密钥
+API_KEY=your_api_key_here
 
 # 可选：服务端口（默认 8888）
 PORT=8888
 
-# 可选：模型名称（默认 GLM-4.5V）
+# 可选：模型名称（默认 GLM-4.5V 或 DeepSeek-V3.2）
 MODEL=GLM-4.5V
 ```
 
@@ -127,7 +128,13 @@ chat/
     ├── backend/                 # 后端服务
     │   ├── server.js            # Express 服务器入口
     │   ├── .env                 # 环境变量配置（需创建）
-    │   └── package.json         # 后端依赖配置
+    │   ├── package.json         # 后端依赖配置
+    │   └── src/
+    │       ├── config/          # 配置文件 (config.js)
+    │       ├── controllers/     # 路由控制器 (chatController.js)
+    │       ├── middleware/      # 中间件 (errorHandler.js 等)
+    │       ├── routes/          # 路由声明 (apiRoutes.js)
+    │       └── services/        # 核心业务逻辑 (aiService.js, promptBuilder.js, historyManager.js)
     │
     └── frontend-vue/            # 前端应用
         ├── index.html           # HTML 入口
@@ -142,13 +149,18 @@ chat/
             ├── App.vue          # 主应用组件
             ├── main.js          # 应用入口
             ├── style.css        # 全局样式
+            ├── api/             # API 网络请求层 (chat.js)
+            ├── store/           # Pinia 状态管理 (chatStore.js)
             │
             ├── assets/          # 资源文件
             │
             └── components/      # Vue 组件
                 ├── AppHeader.vue          # 顶部导航栏
                 ├── CharacterSettings.vue  # 角色设置面板
-                ├── ChatArea.vue           # 聊天区域
+                ├── ChatArea.vue           # 聊天主容器
+                ├── chat/                  # 分拆后的聊天子组件
+                │   ├── MessageBubble.vue  # 对话气泡
+                │   └── MessageInput.vue   # 底部输入框与模型设置
                 ├── PopupModal.vue         # 弹窗组件
                 └── SnowEffect.vue         # 雪花特效
 ```
@@ -203,7 +215,29 @@ chat/
 
 ```json
 {
-  "answer": "AI 的回复内容"
+  "answer": "AI 的回复内容",
+  "history": [/* 更新后的带有完整上下文的历史记录 */]
+}
+```
+
+### PUT `/model`
+
+动态切换后端使用的大模型。
+
+#### 请求体
+
+```json
+{
+  "model": "GLM-4.5V"
+}
+```
+
+#### 响应
+
+```json
+{
+  "message": "模型切换成功",
+  "currentModel": "GLM-4.5V"
 }
 ```
 
@@ -247,9 +281,9 @@ chat/
 
 | 变量名 | 必填 | 默认值 | 描述 |
 |--------|------|--------|------|
-| `GLM_API_KEY` | ✅ | - | 智谱 AI API 密钥 (必须设置) |
+| `API_KEY` | ✅ | - | 对应底层大模型的 API 密钥 (必须设置) |
 | `PORT` | ❌ | `8888` | 后端服务端口 |
-| `MODEL` | ❌ | `GLM-4.5V` | 使用的模型名称 |
+| `MODEL` | ❌ | `GLM-4.5V` | 默认使用的模型名称 |
 
 #### 前端 (`qa-app/frontend-vue/.env`)
 

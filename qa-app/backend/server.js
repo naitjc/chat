@@ -3,9 +3,10 @@ const cors = require('cors');
 const path = require('path');
 const config = require('./src/config/config');
 const apiRoutes = require('./src/routes/apiRoutes');
+const errorHandler = require('./src/middleware/errorHandler'); // newly added
 
 if (!config.apiKey) {
-  console.error("错误：GLM_API_KEY 未在 .env 文件中设置。");
+  console.error("错误：API_KEY 未在 .env 文件中设置。");
   process.exit(1);
 }
 
@@ -17,6 +18,9 @@ app.use(express.static(path.join(__dirname, '../frontend-vue/dist'))); // Serve 
 
 // Use routes
 app.use('/', apiRoutes);
+
+// Global Error Handler
+app.use(errorHandler);
 
 const server = app.listen(config.port, () => {
   console.log(`后端服务器运行在 http://localhost:${server.address().port}`);
