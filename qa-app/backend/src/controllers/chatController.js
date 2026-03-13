@@ -12,7 +12,7 @@ async function handleChat(req, res, next) {
         const result = await aiService.getChatCompletion(req.body);
         res.json(result);
     } catch (error) {
-        next(error); // Pass to errorHandler
+        next(error); 
     }
 }
 

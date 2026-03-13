@@ -41,8 +41,8 @@ const handleBackgroundUpdate = (background) => {
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  background: linear-gradient(180deg, #dce9f5 0%, #c5d8ef 100%);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background: linear-gradient(135deg, #eef2f3 0%, #8e9eab 100%);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -50,18 +50,23 @@ const handleBackgroundUpdate = (background) => {
 
 :deep(.el-container) {
   box-sizing: border-box;
-  height: 100%;
+  height: 90vh; /* Increased height slightly */
+  width: 95vw;
+  max-width: 1400px;
 }
 
 :deep(.el-main) {
   overflow: hidden;
   padding: 0;
+  display: flex;
+  gap: 24px; /* Increased gap */
 }
 
 @media (max-width: 800px) {
   :deep(.el-main) {
     flex-direction: column;
     overflow-y: auto;
+    gap: 16px;
   }
 }
 </style>

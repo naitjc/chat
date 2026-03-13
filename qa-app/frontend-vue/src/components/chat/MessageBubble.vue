@@ -13,12 +13,7 @@ const chatStore = useChatStore()
 const avatarInputRef = ref(null)
 
 const triggerAvatarUpload = () => {
-  if (props.msg.displayRole === 'user') {
-    avatarInputRef.value.click()
-  } else {
-    // Alternatively, emit an event or trigger bot avatar upload. We'll handle it nicely.
-    // In ChatArea it was opening two different refs.
-  }
+  avatarInputRef.value.click()
 }
 
 const handleAvatarChange = (e) => {
@@ -53,8 +48,8 @@ const handleAvatarChange = (e) => {
     <!-- 头像 -->
     <el-avatar 
       :src="msg.displayRole === 'user' ? chatStore.userAvatar : chatStore.characterSettings.avatar"
-      :size="42"
-      style="margin-top: 0; cursor: pointer; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.1);"
+      :size="44"
+      class="message-avatar"
       @click="triggerAvatarUpload"
     />
     
@@ -72,31 +67,54 @@ const handleAvatarChange = (e) => {
         class="message-bubble"
         :class="msg.displayRole === 'user' ? 'user-bubble' : 'bot-bubble'"
       >
-        <div style="line-height: 1.6; white-space: pre-wrap;">{{ msg.content }}</div>
+        <div style="line-height: 1.7; white-space: pre-wrap;">{{ msg.content }}</div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.message-avatar {
+  margin-top: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.message-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
 /* Chat Bubbles */
 .message-bubble {
-  padding: 12px 18px;
-  border-radius: 18px;
+  padding: 14px 20px;
+  border-radius: 20px;
   font-size: 15px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
   max-width: 100%;
   word-break: break-word;
+  transition: transform 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.chat-message-item:hover .message-bubble {
+  transform: translateY(-1px);
 }
 
 .user-bubble {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #7c83fd 0%, #9672fb 100%);
   color: white;
+  border-bottom-right-radius: 4px;
 }
 
 .bot-bubble {
-  background: white;
-  color: #333;
-  border: 1px solid #eef0f3;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  color: #2c3e50;
+  border-bottom-left-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 </style>

@@ -57,7 +57,7 @@ const handleBackgroundChange = (e) => {
             v-for="char in characters"
             :key="char.id"
             :value="char.id"
-            :label="char.roleName"
+            :label="char.basicInfo.name"
           />
         </el-select>
       </div>
@@ -74,12 +74,23 @@ const handleBackgroundChange = (e) => {
 
 <style scoped>
 :deep(.el-header) {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  border-radius: 16px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.el-button {
+  border-radius: 12px;
+  padding: 10px 20px;
+  transition: all 0.3s ease;
+}
+
+.el-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
 }
 </style>

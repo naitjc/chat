@@ -1,7 +1,9 @@
-const axios = require('axios');
-const config = require('../config/config');
+const { callLLM } = require('./llmClient');
 
-async function summarizeHistory(messages, apiKey, model) {
+/**
+ * 历史记录压缩服务 (已修复 API 路径)
+ */
+async function summarizeHistory(messages) {
     const summaryPrompt = "请简要总结上述对话的内容，保留关键信息，字数控制在200字以内。";
     const summaryMessages = [
         ...messages,
@@ -9,55 +11,35 @@ async function summarizeHistory(messages, apiKey, model) {
     ];
 
     try {
-        const response = await axios.post(
-            config.apiURL,
-            {
-                model: model,
-                messages: summaryMessages,
-                stream: false
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        return response.data.choices[0].message.content;
+        const data = await callLLM(summaryMessages, { temperature: 0.3 });
+        return data.choices[0].message.content;
     } catch (error) {
-        console.error("Error summarizing history:", error.message);
+        console.error("[历史压缩] 摘要生成失败:", error.message);
         throw error;
     }
 }
 
-async function compressHistoryIfNeeded(currentHistory, apiKey, modelToUse) {
+async function compressHistoryIfNeeded(currentHistory) {
     let history = Array.isArray(currentHistory) ? currentHistory : [];
     
-    // Check if history needs compression (e.g., >= 10 messages = 5 turns)
     if (history.length >= 10) {
-        console.log("History length:", history.length, "- Triggering compression");
+        console.log(`[历史压缩] 历史长度 ${history.length}，触发压缩...`);
         try {
-            // Keep the last 2 messages (1 turn) intact
             const recentMessages = history.slice(-2);
-            // Summarize the rest
             const messagesToSummarize = history.slice(0, -2);
+            const summary = await summarizeHistory(messagesToSummarize);
 
-            const summary = await summarizeHistory(messagesToSummarize, apiKey, modelToUse);
-
-            // Construct new history: Summary + Recent Messages
             history = [
                 { role: 'system', content: `[前情提要] ${summary}` },
                 ...recentMessages
             ];
-            console.log("Compression complete. New history length:", history.length);
+            console.log(`[历史压缩] 完成，新长度: ${history.length}`);
         } catch (err) {
-            console.error("Compression failed, continuing with full history:", err.message);
+            console.error("[历史压缩] 失败，使用原始历史:", err.message);
         }
     }
     
     return history;
 }
 
-module.exports = {
-    compressHistoryIfNeeded
-};
+module.exports = { compressHistoryIfNeeded };

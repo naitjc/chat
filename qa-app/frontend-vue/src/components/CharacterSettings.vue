@@ -7,76 +7,92 @@ const chatStore = useChatStore()
 <template>
   <el-card class="character-settings-card">
     <template #header>
-      <span style="font-size: 18px; font-weight: bold;">角色设定</span>
+      <div class="card-header">
+        <el-icon :size="20" style="margin-right: 8px;"><User /></el-icon>
+        <span>角色设定</span>
+      </div>
     </template>
     
-    <el-form label-position="top" label-width="auto">
-      <el-form-item label="角色名称:">
+    <el-form label-position="top" class="custom-form">
+      <!-- 基本信息 -->
+      <div class="section-title">基本信息</div>
+      <div class="form-row">
+        <el-form-item label="角色名称" style="flex: 2;">
+          <el-input v-model="chatStore.characterSettings.basicInfo.name" placeholder="顾时夜" />
+        </el-form-item>
+        <el-form-item label="年龄" style="flex: 1;">
+          <el-input v-model="chatStore.characterSettings.basicInfo.age" placeholder="31" />
+        </el-form-item>
+      </div>
+      <div class="form-row">
+        <el-form-item label="角色性别" style="flex: 1;">
+          <el-input v-model="chatStore.characterSettings.basicInfo.gender" placeholder="男" />
+        </el-form-item>
+        <el-form-item label="用户昵称" style="flex: 1.5;">
+          <el-input v-model="chatStore.characterSettings.basicInfo.userNickname" placeholder="夫人" />
+        </el-form-item>
+      </div>
+
+      <!-- 核心性格 (数组转字符串处理) -->
+      <div class="section-title">核心性格 (用分号分隔)</div>
+      <el-form-item>
         <el-input 
-          v-model="chatStore.characterSettings.roleName" 
-          placeholder="例如：小鸟游六花"
+          :model-value="chatStore.characterSettings.corePersonality.join('；')" 
+          @update:model-value="val => chatStore.characterSettings.corePersonality = val.split(/[；;]/).map(s => s.trim()).filter(s => s)"
+          type="textarea" 
+          :autosize="{ minRows: 2, maxRows: 4 }" 
+          placeholder="沉稳克制；情绪内敛；偶尔吃醋..."
         />
       </el-form-item>
 
-      <el-form-item label="行为特征:">
+      <!-- 语言风格 -->
+      <div class="section-title">语言风格</div>
+      <el-form-item label="语调描述">
+        <el-input v-model="chatStore.characterSettings.speechStyle.tone" placeholder="温和、简短、克制" />
+      </el-form-item>
+      <el-form-item label="常用口癖 (分号分隔)">
         <el-input 
-          v-model="chatStore.characterSettings.behavioralTraits"
-          placeholder="例如：右眼戴着眼罩，左手绑着绷带..."
+          :model-value="chatStore.characterSettings.speechStyle.habits.join('；')" 
+          @update:model-value="val => chatStore.characterSettings.speechStyle.habits = val.split(/[；;]/).map(s => s.trim()).filter(s => s)"
+          placeholder="常说“嗯”；偶尔说“好不好”" 
         />
       </el-form-item>
 
-      <el-form-item label="身份背景:">
+      <!-- 行为准则 -->
+      <div class="section-title">行为准则 (分号分隔)</div>
+      <el-form-item>
         <el-input 
-          v-model="chatStore.characterSettings.identityBackground"
-          type="textarea"
-          :rows="2"
-          placeholder="例如：富樫勇太的同班同学兼女友..."
+          :model-value="chatStore.characterSettings.behaviorRules.join('；')" 
+          @update:model-value="val => chatStore.characterSettings.behaviorRules = val.split(/[；;]/).map(s => s.trim()).filter(s => s)"
+          type="textarea" 
+          :autosize="{ minRows: 2, maxRows: 4 }" 
         />
       </el-form-item>
 
-      <el-form-item label="性格特征:">
-        <el-input 
-          v-model="chatStore.characterSettings.personalityTraits"
-          type="textarea"
-          :rows="2"
-          placeholder="例如：内向怕生，有很强的妄想症..."
-        />
+      <!-- 背景设定 -->
+      <div class="section-title">背景设定</div>
+      <el-form-item label="身份标签">
+        <el-input v-model="chatStore.characterSettings.background.identity" placeholder="北大洲掌权者" />
+      </el-form-item>
+      <el-form-item label="居住地/活动范围">
+        <el-input v-model="chatStore.characterSettings.background.residence" placeholder="顾公馆" />
+      </el-form-item>
+      <el-form-item label="生平历史">
+        <el-input v-model="chatStore.characterSettings.background.history" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
       </el-form-item>
 
-      <el-form-item label="语言风格:">
+      <!-- 偏好 -->
+      <div class="section-title">喜恶设定 (分号分隔)</div>
+      <el-form-item label="喜欢的">
         <el-input 
-          v-model="chatStore.characterSettings.languageStyle"
-          type="textarea"
-          :rows="2"
-          placeholder="例如：充满中二病的词汇和设定..."
+          :model-value="chatStore.characterSettings.preferences.likes.join('；')" 
+          @update:model-value="val => chatStore.characterSettings.preferences.likes = val.split(/[；;]/).map(s => s.trim()).filter(s => s)"
         />
       </el-form-item>
-
-      <el-form-item label="角色性别:">
+      <el-form-item label="讨厌的">
         <el-input 
-          v-model="chatStore.characterSettings.gender"
-          placeholder="例如：女"
-        />
-      </el-form-item>
-
-      <el-form-item label="喜欢的物品:">
-        <el-input 
-          v-model="chatStore.characterSettings.likedItems"
-          placeholder="例如：自动伞、眼罩、绷带..."
-        />
-      </el-form-item>
-
-      <el-form-item label="讨厌的物品:">
-        <el-input 
-          v-model="chatStore.characterSettings.dislikedItems"
-          placeholder="例如：数学题、过于现实的话题..."
-        />
-      </el-form-item>
-
-      <el-form-item label="称呼用户的昵称:">
-        <el-input 
-          v-model="chatStore.characterSettings.userNickname"
-          placeholder="例如：勇太、Master..."
+          :model-value="chatStore.characterSettings.preferences.dislikes.join('；')" 
+          @update:model-value="val => chatStore.characterSettings.preferences.dislikes = val.split(/[；;]/).map(s => s.trim()).filter(s => s)"
         />
       </el-form-item>
     </el-form>
@@ -84,75 +100,100 @@ const chatStore = useChatStore()
 </template>
 
 <style scoped>
-.character-settings-card {
-  width: 20%;
-  min-width: 240px;
-  height: 100%;
-  flex-shrink: 0;
+.section-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #409EFF;
+  margin: 16px 0 8px 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(64, 158, 255, 0.2);
 }
 
-:deep(.el-card) {
+.section-title:first-child {
+  margin-top: 0;
+}
+.character-settings-card {
+  width: 280px;
   height: 100%;
-  background: rgba(255, 255, 255, 0.15) !important;
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+  flex-shrink: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
 }
 
 :deep(.el-card__header) {
-  background: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
-  color: #2c3e50;
-  padding: 16px 20px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, rgba(132, 250, 176, 0.3) 0%, rgba(143, 211, 244, 0.3) 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 :deep(.el-card__body) {
   height: calc(100% - 60px);
   overflow-y: auto;
-  overflow-x: hidden;
   padding: 20px;
+  scrollbar-width: none; /* Hide for and scrollable area */
 }
 
-/* Custom Scrollbar */
-:deep(.el-card__body)::webkit-scrollbar {
-  width: 6px;
+:deep(.el-card__body::-webkit-scrollbar) {
+  display: none;
 }
 
-:deep(.el-card__body)::webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
+.custom-form :deep(.el-form-item__label) {
+  font-size: 13px;
+  font-weight: 600;
+  color: #57606f;
+  margin-bottom: 4px;
+  padding-left: 4px;
 }
 
-:deep(.el-card__body)::webkit-scrollbar-track {
-  background-color: transparent;
+.form-row {
+  display: flex;
+  gap: 12px;
 }
 
 /* Input Styles */
 :deep(.el-input__wrapper), :deep(.el-textarea__inner) {
-  box-shadow: 0 0 0 1px #dcdfe6 inset;
-  border-radius: 8px;
-  transition: all 0.3sease;
+  background-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  transition: all 0.3s ease;
 }
 
 :deep(.el-input__wrapper:hover), :deep(.el-textarea__inner:hover) {
-  box-shadow: 0 0 0 1px #c0c4cc inset;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-color: #409eff80;
 }
 
 :deep(.el-input__wrapper.is-focus), :deep(.el-textarea__inner:focus) {
-  box-shadow: 0 0 0 1px #409eff inset !important; 
+  background-color: #fff;
+  border-color: #409eff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1) !important;
+}
+
+@media (max-width: 1000px) {
+  .character-settings-card {
+    width: 220px;
+  }
 }
 
 @media (max-width: 800px) {
   .character-settings-card {
     width: 100% !important;
     height: auto !important;
-    max-height: 300px;
-  }
-  
-  :deep(.el-card__body) {
-    height: auto;
-    max-height: 240px;
+    max-height: 40%;
   }
 }
 </style>
