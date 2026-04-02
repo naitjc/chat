@@ -5,19 +5,19 @@ import ChatArea from './components/ChatArea.vue'
 import SnowEffect from './components/SnowEffect.vue'
 import PopupModal from './components/PopupModal.vue'
 import { useChatStore } from './store/chatStore'
-import { ref, provide } from 'vue'
+import { ref, provide, onMounted } from 'vue'
 
 const chatStore = useChatStore()
 const showSnow = ref(true)
 provide('showSnow', showSnow)
 
-const handleCharacterSelect = (character) => {
-  chatStore.setCharacter(character)
-}
+// 主题初始化
+onMounted(() => {
+  document.documentElement.setAttribute('data-theme', chatStore.currentTheme)
+})
 
-const handleBackgroundUpdate = (background) => {
-  chatStore.setChatBackground(background)
-}
+const handleCharacterSelect = (character) => chatStore.setCharacter(character)
+const handleBackgroundUpdate = (bg) => chatStore.setChatBackground(bg)
 </script>
 
 <template>
@@ -30,7 +30,6 @@ const handleBackgroundUpdate = (background) => {
         @select-character="handleCharacterSelect"
         @update-background="handleBackgroundUpdate"
       />
-
       <el-main>
         <CharacterSettings />
         <ChatArea />
@@ -47,7 +46,6 @@ const handleBackgroundUpdate = (background) => {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* 背景由 style.css 的 body 背景渐变接管，这里仅做布局容器 */
 }
 
 :deep(.el-container) {

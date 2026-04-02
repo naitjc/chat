@@ -1,17 +1,10 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
-const dialogVisible = ref(false)
-
-onMounted(() => {
-  // 如果用户之前关闭过弹窗，不再显示
-  const dismissed = localStorage.getItem('popup_dismissed')
-  if (!dismissed) dialogVisible.value = true
-})
+const dialogVisible = ref(true)
 
 const handleClose = () => {
   dialogVisible.value = false
-  localStorage.setItem('popup_dismissed', '1')
 }
 </script>
 

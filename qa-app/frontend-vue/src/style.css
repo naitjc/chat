@@ -1,104 +1,271 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 
-/* ===================== CSS 变量系统 ===================== */
-:root {
-  --primary: #7c83fd;
-  --primary-light: #a78bfa;
-  --accent: #f472b6;
+/* ===================== 主题变量 ===================== */
+:root,
+[data-theme="default"] {
+    --primary: #7c83fd;
+    --primary-light: #a78bfa;
+    --accent: #f472b6;
 
-  --bg-gradient: linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 40%, #fce7f3 100%);
-  --bg-glass: rgba(255, 255, 255, 0.25);
-  --bg-glass-hover: rgba(255, 255, 255, 0.4);
-  --border-glass: rgba(255, 255, 255, 0.35);
+    --bg-gradient: linear-gradient(
+        135deg,
+        #b0bef0 0%,
+        #ccd8f8 45%,
+        #e0c2e8 100%
+    );
+    --bg-glass: rgba(255, 255, 255, 0.26);
+    --bg-glass-hover: rgba(255, 255, 255, 0.38);
+    --bg-glass-card: rgba(248, 248, 255, 0.3);
+    --border-glass: rgba(255, 255, 255, 0.38);
+    --border-glass-strong: rgba(255, 255, 255, 0.55);
 
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --text-accent: #4c4f8f;
 
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.1);
+    --user-bubble-bg: linear-gradient(135deg, #7c83fd 0%, #9d72fb 100%);
+    --user-bubble-text: white;
+    --bot-bubble-bg: rgba(238, 241, 255, 0.92);
+    --bot-bubble-text: #1e293b;
+    --bot-bubble-border: rgba(180, 185, 255, 0.45);
 
-  --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
+    --shadow-sm: 0 2px 8px rgba(80, 80, 160, 0.1);
+    --shadow-md: 0 8px 24px rgba(80, 80, 160, 0.14);
+    --shadow-lg: 0 16px 48px rgba(80, 80, 160, 0.18);
+    --shadow-primary: 0 4px 16px rgba(124, 131, 253, 0.3);
 
-  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --input-bg: rgba(255, 255, 255, 0.55);
+    --input-border: rgba(0, 0, 0, 0.06);
+    --input-bg-focus: #fff;
+
+    --scrollbar-thumb: rgba(124, 131, 253, 0.3);
+    --radius-sm: 8px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+    --primary: #818cf8;
+    --primary-light: #a78bfa;
+    --accent: #f472b6;
+
+    --bg-gradient: linear-gradient(
+        135deg,
+        #0f172a 0%,
+        #1e1b4b 50%,
+        #1a0a2e 100%
+    );
+    --bg-glass: rgba(30, 27, 75, 0.5);
+    --bg-glass-hover: rgba(49, 46, 129, 0.4);
+    --bg-glass-card: rgba(15, 23, 42, 0.55);
+    --border-glass: rgba(129, 140, 248, 0.15);
+    --border-glass-strong: rgba(129, 140, 248, 0.25);
+
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-accent: #a5b4fc;
+
+    --user-bubble-bg: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    --user-bubble-text: white;
+    --bot-bubble-bg: rgba(30, 27, 75, 0.7);
+    --bot-bubble-text: #e2e8f0;
+    --bot-bubble-border: rgba(129, 140, 248, 0.2);
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
+    --shadow-primary: 0 4px 16px rgba(129, 140, 248, 0.25);
+
+    --input-bg: rgba(30, 27, 75, 0.5);
+    --input-border: rgba(129, 140, 248, 0.15);
+    --input-bg-focus: rgba(49, 46, 129, 0.6);
+
+    --scrollbar-thumb: rgba(129, 140, 248, 0.3);
+}
+
+[data-theme="sakura"] {
+    --primary: #e879a0;
+    --primary-light: #f9a8d4;
+    --accent: #fb7185;
+
+    --bg-gradient: linear-gradient(
+        135deg,
+        #f0b8d0 0%,
+        #eaaac4 45%,
+        #e898b8 100%
+    );
+    --bg-glass: rgba(255, 230, 240, 0.36);
+    --bg-glass-hover: rgba(255, 215, 230, 0.5);
+    --bg-glass-card: rgba(255, 232, 242, 0.38);
+    --border-glass: rgba(232, 121, 160, 0.3);
+    --border-glass-strong: rgba(232, 121, 160, 0.48);
+
+    --text-primary: #4a1028;
+    --text-secondary: #9d4066;
+    --text-muted: #c88aa0;
+    --text-accent: #be185d;
+
+    --user-bubble-bg: linear-gradient(135deg, #e879a0 0%, #fb7185 100%);
+    --user-bubble-text: white;
+    --bot-bubble-bg: rgba(255, 234, 244, 0.94);
+    --bot-bubble-text: #3d0a20;
+    --bot-bubble-border: rgba(232, 121, 160, 0.4);
+
+    --shadow-sm: 0 2px 8px rgba(180, 60, 100, 0.12);
+    --shadow-md: 0 8px 24px rgba(180, 60, 100, 0.18);
+    --shadow-lg: 0 16px 48px rgba(180, 60, 100, 0.22);
+    --shadow-primary: 0 4px 16px rgba(232, 121, 160, 0.4);
+
+    --input-bg: rgba(255, 240, 245, 0.6);
+    --input-border: rgba(232, 121, 160, 0.15);
+    --input-bg-focus: rgba(255, 255, 255, 0.9);
+
+    --scrollbar-thumb: rgba(232, 121, 160, 0.35);
+}
+
+[data-theme="ocean"] {
+    --primary: #0ea5e9;
+    --primary-light: #38bdf8;
+    --accent: #06b6d4;
+
+    --bg-gradient: linear-gradient(
+        135deg,
+        #90d4ed 0%,
+        #a8c8e8 45%,
+        #96b4e0 100%
+    );
+    --bg-glass: rgba(210, 238, 252, 0.32);
+    --bg-glass-hover: rgba(185, 225, 248, 0.46);
+    --bg-glass-card: rgba(215, 240, 252, 0.34);
+    --border-glass: rgba(14, 165, 233, 0.26);
+    --border-glass-strong: rgba(14, 165, 233, 0.42);
+
+    --text-primary: #0c2340;
+    --text-secondary: #1e6fa8;
+    --text-muted: #7ab3d0;
+    --text-accent: #0369a1;
+
+    --user-bubble-bg: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+    --user-bubble-text: white;
+    --bot-bubble-bg: rgba(228, 246, 255, 0.94);
+    --bot-bubble-text: #082038;
+    --bot-bubble-border: rgba(14, 165, 233, 0.36);
+
+    --shadow-sm: 0 2px 8px rgba(8, 100, 160, 0.12);
+    --shadow-md: 0 8px 24px rgba(8, 100, 160, 0.18);
+    --shadow-lg: 0 16px 48px rgba(8, 100, 160, 0.22);
+    --shadow-primary: 0 4px 16px rgba(14, 165, 233, 0.35);
+
+    --input-bg: rgba(224, 242, 254, 0.55);
+    --input-border: rgba(14, 165, 233, 0.12);
+    --input-bg-focus: rgba(255, 255, 255, 0.9);
+
+    --scrollbar-thumb: rgba(14, 165, 233, 0.3);
 }
 
 /* ===================== 基础重置 ===================== */
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg-gradient);
-  margin: 0;
-  height: 100vh;
-  width: 100%;
-  overflow: hidden;
-  color: var(--text-primary);
-  -webkit-font-smoothing: antialiased;
+    font-family:
+        "Inter",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        sans-serif;
+    background: var(--bg-gradient);
+    margin: 0;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    transition:
+        background 0.4s ease,
+        color 0.4s ease;
 }
 
 #app {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 /* ===================== 滚动条 ===================== */
 ::-webkit-scrollbar {
-  width: 5px;
+    width: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(124, 131, 253, 0.3);
-  border-radius: 4px;
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(124, 131, 253, 0.6);
+    filter: brightness(1.3);
 }
 
-/* ===================== Markdown 渲染样式 ===================== */
+/* ===================== Markdown 渲染 ===================== */
 .md-content {
-  line-height: 1.75;
+    line-height: 1.75;
 }
-.md-content p { margin: 0 0 8px; }
-.md-content p:last-child { margin-bottom: 0; }
-.md-content strong { font-weight: 600; }
-.md-content em { font-style: italic; }
+.md-content p {
+    margin: 0 0 8px;
+}
+.md-content p:last-child {
+    margin-bottom: 0;
+}
+.md-content strong {
+    font-weight: 600;
+}
 .md-content code {
-  background: rgba(0,0,0,0.07);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-family: 'Fira Code', monospace;
-  font-size: 0.88em;
+    background: rgba(0, 0, 0, 0.07);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: "Fira Code", monospace;
+    font-size: 0.88em;
 }
 .md-content pre {
-  background: rgba(0,0,0,0.06);
-  border-radius: 8px;
-  padding: 12px;
-  overflow-x: auto;
-  margin: 8px 0;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    margin: 8px 0;
 }
 .md-content pre code {
-  background: none;
-  padding: 0;
+    background: none;
+    padding: 0;
 }
-.md-content ul, .md-content ol {
-  margin: 6px 0;
-  padding-left: 20px;
+.md-content ul,
+.md-content ol {
+    margin: 6px 0;
+    padding-left: 20px;
 }
-.md-content li { margin: 2px 0; }
+.md-content li {
+    margin: 2px 0;
+}
 .md-content blockquote {
-  border-left: 3px solid var(--primary);
-  margin: 8px 0;
-  padding: 4px 12px;
-  opacity: 0.8;
+    border-left: 3px solid var(--primary);
+    margin: 8px 0;
+    padding: 4px 12px;
+    opacity: 0.8;
+}
+.user-bubble .md-content code {
+    background: rgba(255, 255, 255, 0.2);
+}
+.user-bubble .md-content blockquote {
+    border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* 用户气泡中的 markdown 颜色保持白色 */
-.user-bubble .md-content code { background: rgba(255,255,255,0.2); }
-.user-bubble .md-content blockquote { border-color: rgba(255,255,255,0.5); }
+/* ===================== 搜索高亮 ===================== */
+mark.search-highlight {
+    background: rgba(255, 213, 79, 0.6);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+}

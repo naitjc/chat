@@ -1,12 +1,22 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
+import { useChatStore } from '../store/chatStore';
 
 const canvasRef = ref(null);
+const chatStore = useChatStore();
 let animationFrameId;
 const snowflakes = [];
 
-// 根据硬件并发数调整粒子数量
 const numFlakes = Math.min(80, Math.max(30, (navigator.hardwareConcurrency || 4) * 8));
+
+const themeColors = {
+  default: 'rgba(232, 235, 255, 0.95)',
+  dark:    'rgba(205, 215, 255, 0.88)',
+  sakura:  'rgba(255, 232, 244, 0.96)',
+  ocean:   'rgba(218, 248, 255, 0.96)',
+};
+
+const snowColor = computed(() => themeColors[chatStore.currentTheme] ?? themeColors.default);
 
 class Snowflake {
   constructor(canvas) {
@@ -33,10 +43,10 @@ class Snowflake {
     else if (this.x < -20) this.x = this.canvas.width + 20;
   }
 
-  draw(ctx) {
+  draw(ctx, color) {
     ctx.globalAlpha = this.opacity;
     ctx.font = `${this.size}px serif`;
-    ctx.fillStyle = 'rgba(180, 214, 255, 0.9)';
+    ctx.fillStyle = color;
     ctx.fillText(this.char, this.x, this.y);
     ctx.globalAlpha = 1;
   }
@@ -47,14 +57,14 @@ const animate = () => {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  // 页面不可见时暂停
   if (document.visibilityState === 'hidden') {
     animationFrameId = requestAnimationFrame(animate);
     return;
   }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  snowflakes.forEach(f => { f.update(); f.draw(ctx); });
+  const color = snowColor.value;
+  snowflakes.forEach(f => { f.update(); f.draw(ctx, color); });
   animationFrameId = requestAnimationFrame(animate);
 };
 
@@ -72,7 +82,6 @@ onMounted(() => {
     for (let i = 0; i < numFlakes; i++) snowflakes.push(new Snowflake(canvasRef.value));
     animate();
     window.addEventListener('resize', handleResize);
-    document.addEventListener('visibilitychange', () => {}); // 触发重绘判断
   }
 });
 

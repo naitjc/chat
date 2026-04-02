@@ -14,10 +14,16 @@ const scrollToBottom = async () => {
   }
 }
 
-watch(() => chatStore.conversationHistory, () => { scrollToBottom() }, { deep: true })
+// 自动滚动到底部：历史变化或正在发送时
+watch(() => chatStore.conversationHistory, () => {
+  if (!chatStore.showSearch) scrollToBottom() // 搜索模式下尽量不自动滚动以免干扰
+}, { deep: true })
 watch(() => chatStore.isSending, () => { scrollToBottom() })
 
-// 状态变化提示文本
+// 返回搜索词高亮过滤后的消息列表
+const displayMessages = computed(() => chatStore.filteredHistory)
+
+// 状态变化提示文本 (仅单角色模式下显得合适, 或未来拆分群聊状态)
 const stateNoticeText = computed(() => {
   const sc = chatStore.stateChangeNotice
   if (!sc) return null
@@ -28,13 +34,36 @@ const stateNoticeText = computed(() => {
   else if (sc.moodDelta < 0) parts.push(`😔 情绪 ${sc.moodDelta}`)
   return parts.length ? parts.join('  ') : null
 })
+
+const onSearchInput = (e) => {
+  chatStore.setSearch(e.target.value)
+}
+
+const toggleBookmark = (msgIndex) => {
+  chatStore.toggleBookmark(msgIndex)
+}
 </script>
 
 <template>
   <el-card class="chat-main-card">
+
+    <!-- 搜索功能栏 -->
+    <Transition name="search-fade">
+      <div v-if="chatStore.showSearch" class="search-bar">
+        <el-input
+          :model-value="chatStore.searchQuery"
+          @input="chatStore.setSearch"
+          placeholder="搜索聊天记录..."
+          prefix-icon="Search"
+          clearable
+        />
+        <el-button @click="chatStore.toggleSearch" plain style="margin-left: 10px;">取消</el-button>
+      </div>
+    </Transition>
+
     <!-- 状态变化浮动提示 -->
     <Transition name="notice-fade">
-      <div v-if="stateNoticeText" class="state-notice">
+      <div v-if="stateNoticeText" class="state-notice" :style="{ top: chatStore.showSearch ? '60px' : '12px'}">
         {{ stateNoticeText }}
         <span v-if="chatStore.stateChangeNotice?.reason" class="notice-reason">
           — {{ chatStore.stateChangeNotice.reason }}
@@ -49,17 +78,21 @@ const stateNoticeText = computed(() => {
       :style="chatStore.chatBackground ? { backgroundImage: `url(${chatStore.chatBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
     >
       <TransitionGroup name="chat-list">
-        <MessageBubble
-          v-for="(msg, index) in chatStore.conversationHistory"
-          :key="index"
-          :msg="msg"
-        />
+        <template v-for="(msg, index) in displayMessages" :key="msg.timestamp + index">
+          <MessageBubble
+            v-if="!msg.streaming || msg.content"
+            :msg="msg"
+            :index="index"
+            :search-query="chatStore.searchQuery"
+            @toggle-bookmark="toggleBookmark(index)"
+          />
+        </template>
       </TransitionGroup>
 
-      <!-- 对方正在输入（仅在非流式模式下显示，流式模式下消息本身就在更新） -->
+      <!-- 对方正在输入（单角色模式） -->
       <Transition name="typing-fade">
         <div
-          v-if="chatStore.isSending && chatStore.characterSettings.basicInfo.name && !chatStore.streamingContent"
+          v-if="chatStore.isSending && !chatStore.isGroupMode && chatStore.characterSettings.basicInfo.name && !chatStore.streamingContent"
           class="typing-indicator-wrapper"
         >
           <el-avatar
@@ -88,11 +121,11 @@ const stateNoticeText = computed(() => {
   flex-direction: column;
   height: 100%;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.22) !important;
+  background: var(--bg-glass-card) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 8px 32px rgba(124, 131, 253, 0.06);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
   position: relative;
 }
@@ -105,27 +138,46 @@ const stateNoticeText = computed(() => {
   background-color: transparent;
 }
 
+/* 搜索栏 */
+.search-bar {
+  padding: 10px 20px;
+  background: var(--bg-glass);
+  border-bottom: 1px solid var(--border-glass);
+  display: flex;
+  align-items: center;
+  z-index: 5;
+}
+
+.search-fade-enter-active, .search-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.search-fade-enter-from, .search-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
 /* 状态变化提示 */
 .state-notice {
   position: absolute;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--bg-glass);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(124, 131, 253, 0.2);
+  border: 1px solid var(--border-glass-strong);
   border-radius: 20px;
   padding: 6px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: #4c4f8f;
+  color: var(--text-accent);
   white-space: nowrap;
   z-index: 10;
-  box-shadow: 0 4px 16px rgba(124, 131, 253, 0.12);
+  box-shadow: var(--shadow-sm);
+  transition: top 0.3s ease;
 }
 
 .notice-reason {
-  color: #94a3b8;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 12px;
 }
@@ -145,9 +197,9 @@ const stateNoticeText = computed(() => {
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(124,131,253,0.2) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* 对方正在输入 */
@@ -160,8 +212,8 @@ const stateNoticeText = computed(() => {
 
 .typing-avatar {
   flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+  border: 2px solid var(--border-glass-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .typing-bubble {
@@ -169,12 +221,12 @@ const stateNoticeText = computed(() => {
   align-items: center;
   gap: 5px;
   padding: 12px 18px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--bot-bubble-bg);
   backdrop-filter: blur(8px);
   border-radius: 18px;
   border-bottom-left-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.04);
+  border: 1px solid var(--bot-bubble-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .typing-dot {
@@ -182,7 +234,7 @@ const stateNoticeText = computed(() => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #9ca3af;
+  background: var(--text-muted);
   animation: typing-bounce 1.4s infinite ease-in-out;
 }
 

@@ -2,9 +2,12 @@
 import { ref, computed } from 'vue'
 import { useChatStore } from '../../store/chatStore'
 import { InfoFilled } from '@element-plus/icons-vue'
+import EmojiPicker from './EmojiPicker.vue'
 
 const chatStore = useChatStore()
 const chatInput = ref('')
+const textareaRef = ref(null)
+const showEmojiPicker = ref(false)
 
 const hasText = computed(() => chatInput.value.trim().length > 0)
 const canSend = computed(() => hasText.value && !chatStore.isSending)
@@ -17,14 +20,53 @@ const sendMessage = async () => {
 }
 
 const handleEnter = (event) => {
-  if (!event.shiftKey) { // Send message on Enter, new line on Shift+Enter
+  if (!event.shiftKey) {
     sendMessage()
   }
+}
+
+// 获取底层 textarea DOM 元素
+const getTextarea = () => textareaRef.value?.$el?.querySelector('textarea')
+
+// 将表情插入到当前光标位置
+const insertEmoji = (emoji) => {
+  const el = getTextarea()
+  if (!el) {
+    chatInput.value += emoji
+    return
+  }
+  const start = el.selectionStart ?? chatInput.value.length
+  const end = el.selectionEnd ?? chatInput.value.length
+  chatInput.value =
+    chatInput.value.slice(0, start) + emoji + chatInput.value.slice(end)
+  // 下一帧恢复光标到插入点之后
+  requestAnimationFrame(() => {
+    el.focus()
+    const pos = start + [...emoji].length
+    el.setSelectionRange(pos, pos)
+  })
 }
 </script>
 
 <template>
   <div class="message-input-container">
+
+    <!-- 表情选择器 -->
+    <el-popover
+      v-model:visible="showEmojiPicker"
+      placement="top-start"
+      :show-arrow="false"
+      :offset="8"
+      trigger="click"
+      popper-class="emoji-popover"
+      width="auto"
+    >
+      <template #reference>
+        <el-button class="emoji-btn-trigger" title="表情">😊</el-button>
+      </template>
+      <EmojiPicker @select="insertEmoji" />
+    </el-popover>
+
     <el-popover
       placement="top"
       title="模型参数调节"
@@ -47,10 +89,10 @@ const handleEnter = (event) => {
             </span>
             <span style="color: #409EFF; font-family: monospace;">{{ chatStore.modelParams.temperature.toFixed(2) }}</span>
           </div>
-          <el-slider 
-            v-model="chatStore.modelParams.temperature" 
-            :min="0" 
-            :max="1" 
+          <el-slider
+            v-model="chatStore.modelParams.temperature"
+            :min="0"
+            :max="1"
             :step="0.01"
             :show-tooltip="false"
           />
@@ -67,19 +109,20 @@ const handleEnter = (event) => {
             </span>
             <span style="color: #409EFF; font-family: monospace;">{{ chatStore.modelParams.top_p.toFixed(2) }}</span>
           </div>
-          <el-slider 
-            v-model="chatStore.modelParams.top_p" 
-            :min="0.01" 
-            :max="1" 
+          <el-slider
+            v-model="chatStore.modelParams.top_p"
+            :min="0.01"
+            :max="1"
             :step="0.01"
             :show-tooltip="false"
           />
         </div>
       </div>
     </el-popover>
-    
+
     <div class="input-wrapper">
       <el-input
+        ref="textareaRef"
         v-model="chatInput"
         type="textarea"
         :autosize="{ minRows: 1, maxRows: 5 }"
@@ -90,9 +133,9 @@ const handleEnter = (event) => {
       />
     </div>
 
-    <el-button 
-      type="primary" 
-      @click="sendMessage" 
+    <el-button
+      type="primary"
+      @click="sendMessage"
       :disabled="!canSend"
       :loading="chatStore.isSending"
       class="send-btn"
@@ -160,5 +203,32 @@ const handleEnter = (event) => {
 .settings-btn:hover {
   background: white !important;
   transform: rotate(45deg);
+}
+
+.emoji-btn-trigger {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+  font-size: 18px;
+  padding: 0 !important;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.emoji-btn-trigger:hover {
+  background: white !important;
+  transform: scale(1.08);
+}
+</style>
+
+<style>
+/* Popover 本身无背景，由 EmojiPicker 组件自己绘制 */
+.emoji-popover {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 </style>

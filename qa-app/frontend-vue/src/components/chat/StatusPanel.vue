@@ -2,8 +2,12 @@
 import { computed } from 'vue'
 import { useChatStore } from '../../store/chatStore'
 
+const props = defineProps({
+  overrideState: { type: Object, default: null }
+})
+
 const chatStore = useChatStore()
-const state = computed(() => chatStore.characterSettings.relationshipState)
+const state = computed(() => props.overrideState || chatStore.characterSettings.relationshipState)
 
 // 情绪描述
 const moodConfig = computed(() => {
