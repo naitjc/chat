@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { useChatStore } from '../store/chatStore'
 import MessageBubble from './chat/MessageBubble.vue'
 import MessageInput from './chat/MessageInput.vue'
@@ -16,33 +16,55 @@ const scrollToBottom = async () => {
 
 watch(() => chatStore.conversationHistory, () => { scrollToBottom() }, { deep: true })
 watch(() => chatStore.isSending, () => { scrollToBottom() })
+
+// 状态变化提示文本
+const stateNoticeText = computed(() => {
+  const sc = chatStore.stateChangeNotice
+  if (!sc) return null
+  const parts = []
+  if (sc.affectionDelta > 0) parts.push(`💖 好感度 +${sc.affectionDelta}`)
+  else if (sc.affectionDelta < 0) parts.push(`💔 好感度 ${sc.affectionDelta}`)
+  if (sc.moodDelta > 0) parts.push(`😊 情绪 +${sc.moodDelta}`)
+  else if (sc.moodDelta < 0) parts.push(`😔 情绪 ${sc.moodDelta}`)
+  return parts.length ? parts.join('  ') : null
+})
 </script>
 
 <template>
   <el-card class="chat-main-card">
+    <!-- 状态变化浮动提示 -->
+    <Transition name="notice-fade">
+      <div v-if="stateNoticeText" class="state-notice">
+        {{ stateNoticeText }}
+        <span v-if="chatStore.stateChangeNotice?.reason" class="notice-reason">
+          — {{ chatStore.stateChangeNotice.reason }}
+        </span>
+      </div>
+    </Transition>
+
     <!-- 聊天消息区域 -->
-    <div 
+    <div
       ref="chatBoxRef"
       class="chat-messages-container"
       :style="chatStore.chatBackground ? { backgroundImage: `url(${chatStore.chatBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
     >
       <TransitionGroup name="chat-list">
-        <MessageBubble 
-          v-for="(msg, index) in chatStore.conversationHistory" 
+        <MessageBubble
+          v-for="(msg, index) in chatStore.conversationHistory"
           :key="index"
           :msg="msg"
         />
       </TransitionGroup>
 
-      <!-- 对方正在输入... 动态气泡 -->
+      <!-- 对方正在输入（仅在非流式模式下显示，流式模式下消息本身就在更新） -->
       <Transition name="typing-fade">
-        <div 
-          v-if="chatStore.isSending && chatStore.characterSettings.basicInfo.name"
+        <div
+          v-if="chatStore.isSending && chatStore.characterSettings.basicInfo.name && !chatStore.streamingContent"
           class="typing-indicator-wrapper"
         >
-          <el-avatar 
+          <el-avatar
             :src="chatStore.characterSettings.avatar"
-            :size="44"
+            :size="42"
             class="typing-avatar"
           />
           <div class="typing-bubble">
@@ -66,12 +88,13 @@ watch(() => chatStore.isSending, () => { scrollToBottom() })
   flex-direction: column;
   height: 100%;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.2) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 8px 32px rgba(124, 131, 253, 0.06);
   overflow: hidden;
+  position: relative;
 }
 
 :deep(.el-card__body) {
@@ -82,51 +105,84 @@ watch(() => chatStore.isSending, () => { scrollToBottom() })
   background-color: transparent;
 }
 
+/* 状态变化提示 */
+.state-notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(124, 131, 253, 0.2);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4c4f8f;
+  white-space: nowrap;
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(124, 131, 253, 0.12);
+}
+
+.notice-reason {
+  color: #94a3b8;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.notice-fade-enter-active, .notice-fade-leave-active {
+  transition: all 0.4s ease;
+}
+.notice-fade-enter-from, .notice-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
+}
+
+/* 聊天消息区域 */
 .chat-messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.1) transparent;
+  scrollbar-color: rgba(124,131,253,0.2) transparent;
 }
 
 /* 对方正在输入 */
 .typing-indicator-wrapper {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-end;
   align-self: flex-start;
 }
 
 .typing-avatar {
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
 }
 
 .typing-bubble {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 14px 20px;
-  background: rgba(255, 255, 255, 0.85);
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(8px);
-  border-radius: 20px;
-  border-bottom-left-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-  min-width: 62px;
+  border-radius: 18px;
+  border-bottom-left-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.04);
 }
 
 .typing-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background-color: #9ca3af;
+  background: #9ca3af;
   animation: typing-bounce 1.4s infinite ease-in-out;
 }
 
@@ -136,10 +192,9 @@ watch(() => chatStore.isSending, () => { scrollToBottom() })
 
 @keyframes typing-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-  30% { transform: translateY(-6px); opacity: 1; }
+  30% { transform: translateY(-5px); opacity: 1; }
 }
 
-/* 打字气泡出现/消失动画 */
 .typing-fade-enter-active, .typing-fade-leave-active {
   transition: all 0.3s ease;
 }
@@ -149,17 +204,14 @@ watch(() => chatStore.isSending, () => { scrollToBottom() })
 }
 
 /* 消息列表动画 */
-.chat-list-enter-active,
-.chat-list-leave-active {
-  transition: all 0.4s ease;
+.chat-list-enter-active, .chat-list-leave-active {
+  transition: all 0.35s ease;
 }
 .chat-list-enter-from {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(16px);
 }
 .chat-list-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
 }
 </style>
-

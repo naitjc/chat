@@ -18,7 +18,7 @@ function buildSystemPrompt(settings) {
 
     // 动态注入当前状态
     if (relationshipState && relationshipState.affection !== undefined) {
-        const { affection, trust, jealousy, mood, relationshipStage, distance } = relationshipState;
+        const { affection, mood, relationshipStage, distance } = relationshipState;
         
         // 将数值转为更具文学色彩的描述
         let moodDesc = "平和";
@@ -29,15 +29,13 @@ function buildSystemPrompt(settings) {
 
         systemPrompt += `\n### [当前互动状态 - 重要参考]
 - **关系阶段**: ${relationshipStage} (当前距离: ${distance})
-- **对夫人的好感度**: ${affection}/100 (信任度: ${trust}/100)
-- **当前醋意值**: ${jealousy}/100
+- **对夫人的好感度**: ${affection}/100
 - **当前情绪状态**: ${moodDesc} (${mood})
 
 **角色指导**: 
 1. 此时你的言行应反映上述状态。
-2. 如果醋意(jealousy)较高，提及竞争对手时语气应变淡、变酸或表现出极强的克制。
-3. 如果心情(mood)较差，话语应更加简减，甚至带有一丝疲惫或冷淡。
-4. 随着好感度(affection)提升，应表现得更加亲昵、更有保护欲。\n`;
+2. 如果心情(mood)较差，话语应更加简减，甚至带有一丝疲惫或冷淡。
+3. 随着好感度(affection)提升，应表现得更加亲昵、更有保护欲。\n`;
     }
 
     // 基本信息

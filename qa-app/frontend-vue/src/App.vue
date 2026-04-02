@@ -5,8 +5,11 @@ import ChatArea from './components/ChatArea.vue'
 import SnowEffect from './components/SnowEffect.vue'
 import PopupModal from './components/PopupModal.vue'
 import { useChatStore } from './store/chatStore'
+import { ref, provide } from 'vue'
 
 const chatStore = useChatStore()
+const showSnow = ref(true)
+provide('showSnow', showSnow)
 
 const handleCharacterSelect = (character) => {
   chatStore.setCharacter(character)
@@ -20,15 +23,15 @@ const handleBackgroundUpdate = (background) => {
 <template>
   <div id="app-root">
     <PopupModal />
-    <SnowEffect />
-    
-    <el-container direction="vertical" style="height: 85vh; width: 100%; max-width: 85vw; margin: 0; padding: 0;">
-      <AppHeader 
+    <SnowEffect v-if="showSnow" />
+
+    <el-container direction="vertical">
+      <AppHeader
         @select-character="handleCharacterSelect"
         @update-background="handleBackgroundUpdate"
       />
-      
-      <el-main style="padding: 0; display: flex; gap: 20px; flex: 1; min-height: 0;">
+
+      <el-main>
         <CharacterSettings />
         <ChatArea />
       </el-main>
@@ -41,32 +44,33 @@ const handleBackgroundUpdate = (background) => {
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  background: linear-gradient(135deg, #eef2f3 0%, #8e9eab 100%);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
+  /* 背景由 style.css 的 body 背景渐变接管，这里仅做布局容器 */
 }
 
 :deep(.el-container) {
   box-sizing: border-box;
-  height: 90vh; /* Increased height slightly */
-  width: 95vw;
-  max-width: 1400px;
+  height: 92vh;
+  width: 96vw;
+  max-width: 1450px;
 }
 
 :deep(.el-main) {
   overflow: hidden;
   padding: 0;
   display: flex;
-  gap: 24px; /* Increased gap */
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 800px) {
   :deep(.el-main) {
     flex-direction: column;
     overflow-y: auto;
-    gap: 16px;
+    gap: 12px;
   }
 }
 </style>

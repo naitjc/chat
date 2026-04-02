@@ -1,13 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* ===================== CSS 变量系统 ===================== */
+:root {
+  --primary: #7c83fd;
+  --primary-light: #a78bfa;
+  --accent: #f472b6;
+
+  --bg-gradient: linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 40%, #fce7f3 100%);
+  --bg-glass: rgba(255, 255, 255, 0.25);
+  --bg-glass-hover: rgba(255, 255, 255, 0.4);
+  --border-glass: rgba(255, 255, 255, 0.35);
+
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.1);
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===================== 基础重置 ===================== */
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #0f172a;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-gradient);
   margin: 0;
   height: 100vh;
   width: 100%;
   overflow: hidden;
-  color: #f3f4f6;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
 }
 
 #app {
@@ -18,20 +46,59 @@ body {
   align-items: center;
 }
 
-/* Scrollbar Styling */
+/* ===================== 滚动条 ===================== */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 5px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: rgba(124, 131, 253, 0.3);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: rgba(124, 131, 253, 0.6);
 }
+
+/* ===================== Markdown 渲染样式 ===================== */
+.md-content {
+  line-height: 1.75;
+}
+.md-content p { margin: 0 0 8px; }
+.md-content p:last-child { margin-bottom: 0; }
+.md-content strong { font-weight: 600; }
+.md-content em { font-style: italic; }
+.md-content code {
+  background: rgba(0,0,0,0.07);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.88em;
+}
+.md-content pre {
+  background: rgba(0,0,0,0.06);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.md-content pre code {
+  background: none;
+  padding: 0;
+}
+.md-content ul, .md-content ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.md-content li { margin: 2px 0; }
+.md-content blockquote {
+  border-left: 3px solid var(--primary);
+  margin: 8px 0;
+  padding: 4px 12px;
+  opacity: 0.8;
+}
+
+/* 用户气泡中的 markdown 颜色保持白色 */
+.user-bubble .md-content code { background: rgba(255,255,255,0.2); }
+.user-bubble .md-content blockquote { border-color: rgba(255,255,255,0.5); }

@@ -5,61 +5,83 @@ import { useChatStore } from '../../store/chatStore'
 const chatStore = useChatStore()
 const state = computed(() => chatStore.characterSettings.relationshipState)
 
-// 心情文本描述
-const moodText = computed(() => {
-  if (!state.value) return '未知'
+// 情绪描述
+const moodConfig = computed(() => {
+  if (!state.value) return { text: '未知', emoji: '😶', cls: 'neutral' }
   const m = state.value.mood
-  if (m > 30) return '非常开心'
-  if (m > 10) return '心情不错'
-  if (m < -30) return '极度低落'
-  if (m < -10) return '有些沉郁'
-  return '平静'
+  if (m > 30)  return { text: '非常开心', emoji: '😄', cls: 'great' }
+  if (m > 10)  return { text: '心情不错', emoji: '😊', cls: 'good' }
+  if (m < -30) return { text: '极度低落', emoji: '😢', cls: 'terrible' }
+  if (m < -10) return { text: '有些沉郁', emoji: '😔', cls: 'bad' }
+  return { text: '平静', emoji: '😌', cls: 'neutral' }
 })
 
-// 阶段翻译
+// 关系阶段
 const stageMap = {
-  'stranger': '素昧平生',
-  'familiar': '泛泛之交',
-  'close': '志同道合',
-  'intimate': '亲密无间',
-  'life_partner': '相濡以沫'
+  'stranger':     { label: '素昧平生', color: '#94a3b8' },
+  'familiar':     { label: '泛泛之交', color: '#6b7280' },
+  'close':        { label: '志同道合', color: '#60a5fa' },
+  'intimate':     { label: '亲密无间', color: '#f472b6' },
+  'life_partner': { label: '相濡以沫', color: '#f97316' },
 }
 
-const stageText = computed(() => stageMap[state.value?.relationshipStage] || '未知')
+const stageInfo = computed(() => stageMap[state.value?.relationshipStage] || { label: '未知', color: '#94a3b8' })
+
+// 好感度进度条颜色（冷 → 暖 → 热）
+const affectionColor = computed(() => {
+  const a = state.value?.affection || 0
+  if (a >= 90) return '#f97316'   // 橙红 - 相濡以沫
+  if (a >= 70) return '#f472b6'   // 粉红 - 亲密
+  if (a >= 50) return '#a78bfa'   // 紫 - 接近
+  if (a >= 30) return '#60a5fa'   // 蓝 - 熟悉
+  return '#94a3b8'                // 灰 - 陌生
+})
 </script>
 
 <template>
   <div v-if="state" class="status-panel">
+    <!-- 顶部状态行 -->
     <div class="status-header">
-      <span class="stage-tag">{{ stageText }}</span>
-      <span class="mood-tag" :class="state.mood < 0 ? 'bad' : 'good'">
-        {{ moodText }}
+      <span class="stage-tag" :style="{ '--stage-color': stageInfo.color }">
+        {{ stageInfo.label }}
+      </span>
+      <span class="mood-tag" :class="moodConfig.cls">
+        {{ moodConfig.emoji }} {{ moodConfig.text }}
       </span>
     </div>
 
-    <div class="status-items">
-      <div class="status-item">
-        <div class="item-label">
-           <span>好感度</span>
-           <span class="val">{{ state.affection }}%</span>
-        </div>
-        <el-progress :percentage="state.affection" :show-text="false" color="#f56c6c" />
+    <!-- 好感度 -->
+    <div class="status-item">
+      <div class="item-label">
+        <span class="label-text">💖 好感度</span>
+        <span class="label-val">{{ state.affection }}<span class="unit">/100</span></span>
       </div>
-
-      <div class="status-item">
-        <div class="item-label">
-           <span>信任度</span>
-           <span class="val">{{ state.trust }}%</span>
-        </div>
-        <el-progress :percentage="state.trust" :show-text="false" color="#409EFF" />
+      <div class="progress-wrap">
+        <div
+          class="progress-bar affection-bar"
+          :style="{ width: state.affection + '%', background: affectionColor }"
+        ></div>
       </div>
+    </div>
 
-      <div class="status-item" v-if="state.jealousy > 0">
-        <div class="item-label">
-           <span>当前醋意</span>
-           <span class="val">{{ state.jealousy }}%</span>
-        </div>
-        <el-progress :percentage="state.jealousy" :show-text="false" color="#909399" />
+    <!-- 情绪 -->
+    <div class="status-item">
+      <div class="item-label">
+        <span class="label-text">🌤 情绪值</span>
+        <span class="label-val" :class="state.mood < 0 ? 'neg' : 'pos'">
+          {{ state.mood > 0 ? '+' : '' }}{{ state.mood }}<span class="unit">/50</span>
+        </span>
+      </div>
+      <div class="progress-wrap">
+        <div class="mood-center-line"></div>
+        <div
+          class="progress-bar mood-bar"
+          :style="{
+            width: Math.abs(state.mood) + '%',
+            left: state.mood >= 0 ? '50%' : (50 - Math.abs(state.mood)) + '%',
+            background: state.mood >= 0 ? 'linear-gradient(90deg, #34d399, #10b981)' : 'linear-gradient(90deg, #f87171, #ef4444)'
+          }"
+        ></div>
       </div>
     </div>
   </div>
@@ -67,58 +89,116 @@ const stageText = computed(() => stageMap[state.value?.relationshipStage] || '�
 
 <style scoped>
 .status-panel {
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(8px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  margin-bottom: 20px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(12px);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  margin-bottom: 16px;
+  box-shadow: 0 4px 20px rgba(124, 131, 253, 0.06);
 }
 
+/* 顶部 */
 .status-header {
   display: flex;
   gap: 8px;
-  margin-bottom: 15px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
 .stage-tag {
-  background: #fdf6ec;
-  color: #e6a23c;
-  padding: 2px 8px;
-  border-radius: 4px;
+  background: color-mix(in srgb, var(--stage-color) 12%, transparent);
+  color: var(--stage-color);
+  border: 1px solid color-mix(in srgb, var(--stage-color) 25%, transparent);
+  padding: 3px 10px;
+  border-radius: 20px;
   font-size: 12px;
-  font-weight: bold;
+  font-weight: 600;
+  transition: all 0.4s ease;
 }
 
 .mood-tag {
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
   font-size: 12px;
+  font-weight: 500;
+  transition: all 0.4s ease;
 }
-.mood-tag.good { background: #f0f9eb; color: #67c23a; }
-.mood-tag.bad { background: #fef0f0; color: #f56c6c; }
+.mood-tag.great   { background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16,185,129,0.25); }
+.mood-tag.good    { background: rgba(52, 211, 153, 0.12); color: #10b981; border: 1px solid rgba(52,211,153,0.25); }
+.mood-tag.neutral { background: rgba(148,163,184,0.12);   color: #64748b; border: 1px solid rgba(148,163,184,0.25); }
+.mood-tag.bad     { background: rgba(248, 113, 113, 0.12); color: #ef4444; border: 1px solid rgba(248,113,113,0.25); }
+.mood-tag.terrible{ background: rgba(239, 68, 68, 0.12);  color: #dc2626; border: 1px solid rgba(239,68,68,0.25); }
 
-.status-items {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* 状态项 */
+.status-item {
+  margin-bottom: 12px;
 }
+.status-item:last-child { margin-bottom: 0; }
 
 .item-label {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 13px;
-  color: #606266;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-.val {
-  font-family: monospace;
-  font-weight: bold;
+.label-text {
+  color: #475569;
+  font-weight: 500;
 }
 
-:deep(.el-progress-bar__outer) {
-  background: rgba(0,0,0,0.05) !important;
+.label-val {
+  font-family: 'Inter', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: #334155;
+  transition: color 0.4s;
+}
+.label-val.pos { color: #10b981; }
+.label-val.neg { color: #ef4444; }
+
+.unit {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  margin-left: 1px;
+}
+
+/* 进度条 */
+.progress-wrap {
+  height: 7px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background 0.6s ease;
+}
+
+.affection-bar {
+  box-shadow: 0 0 8px rgba(244, 114, 182, 0.4);
+}
+
+/* 情绪双向进度条 */
+.mood-center-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: rgba(0,0,0,0.15);
+  z-index: 1;
+}
+
+.mood-bar {
+  position: absolute;
+  top: 0;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 </style>

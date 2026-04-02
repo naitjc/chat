@@ -1,6 +1,10 @@
 <script setup>
 import { useChatStore } from '../../store/chatStore'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { marked } from 'marked'
+
+// 配置 marked 去除外层 <p> 包裹的选项
+marked.setOptions({ breaks: true })
 
 const props = defineProps({
   msg: {
@@ -12,20 +16,24 @@ const props = defineProps({
 const chatStore = useChatStore()
 const avatarInputRef = ref(null)
 
-const triggerAvatarUpload = () => {
-  avatarInputRef.value.click()
-}
+const isUser = computed(() => props.msg.displayRole === 'user')
+
+// 渲染 Markdown（仅对 bot 消息）
+const renderedContent = computed(() => {
+  if (isUser.value) return null
+  return marked.parse(props.msg.content || '')
+})
+
+const triggerAvatarUpload = () => avatarInputRef.value.click()
 
 const handleAvatarChange = (e) => {
   const file = e.target.files[0]
   if (file) {
     const reader = new FileReader()
-    reader.onload = (e_reader) => {
-      if (props.msg.displayRole === 'user') {
-        chatStore.setUserAvatar(e_reader.target.result)
-      } else {
-        chatStore.setBotAvatar(e_reader.target.result)
-      }
+    reader.onload = (ev) => {
+      isUser.value
+        ? chatStore.setUserAvatar(ev.target.result)
+        : chatStore.setBotAvatar(ev.target.result)
     }
     reader.readAsDataURL(file)
   }
@@ -34,53 +42,58 @@ const handleAvatarChange = (e) => {
 </script>
 
 <template>
-  <div 
-    :style="{
-      display: 'flex',
-      gap: '12px',
-      alignItems: 'flex-start',
-      flexDirection: msg.displayRole === 'user' ? 'row-reverse' : 'row',
-      alignSelf: msg.displayRole === 'user' ? 'flex-end' : 'flex-start',
-      maxWidth: '85%'
-    }"
+  <div
     class="chat-message-item"
+    :class="isUser ? 'is-user' : 'is-bot'"
   >
     <!-- 头像 -->
-    <el-avatar 
-      :src="msg.displayRole === 'user' ? chatStore.userAvatar : chatStore.characterSettings.avatar"
-      :size="44"
+    <el-avatar
+      :src="isUser ? chatStore.userAvatar : chatStore.characterSettings.avatar"
+      :size="42"
       class="message-avatar"
       @click="triggerAvatarUpload"
     />
-    
-    <!-- 隐藏的头像上传 -->
     <input type="file" ref="avatarInputRef" accept="image/*" style="display: none;" @change="handleAvatarChange">
-    
-    <!-- 消息内容 -->
-    <div :style="{ 
-      marginTop: '0',
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: msg.displayRole === 'user' ? 'flex-end' : 'flex-start' 
-    }">
-      <div 
+
+    <!-- 消息气泡 -->
+    <div class="bubble-wrapper">
+      <div
         class="message-bubble"
-        :class="msg.displayRole === 'user' ? 'user-bubble' : 'bot-bubble'"
+        :class="isUser ? 'user-bubble' : 'bot-bubble'"
       >
-        <div style="line-height: 1.7; white-space: pre-wrap;">{{ msg.content }}</div>
+        <!-- Bot 消息渲染 Markdown；用户消息纯文本 -->
+        <div v-if="isUser" class="md-content plain">{{ msg.content }}</div>
+        <div v-else class="md-content" v-html="renderedContent"></div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.chat-message-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 85%;
+}
+
+.is-user {
+  flex-direction: row-reverse;
+  align-self: flex-end;
+}
+
+.is-bot {
+  flex-direction: row;
+  align-self: flex-start;
+}
+
 .message-avatar {
-  margin-top: 0;
-  cursor: pointer;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
   border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-top: 2px;
 }
 
 .message-avatar:hover {
@@ -88,16 +101,19 @@ const handleAvatarChange = (e) => {
   box-shadow: 0 6px 16px rgba(0,0,0,0.12);
 }
 
-/* Chat Bubbles */
+.bubble-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
 .message-bubble {
-  padding: 14px 20px;
-  border-radius: 20px;
+  padding: 12px 18px;
+  border-radius: 18px;
   font-size: 15px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-  max-width: 100%;
+  line-height: 1.7;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.04);
   word-break: break-word;
   transition: transform 0.2s ease;
-  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .chat-message-item:hover .message-bubble {
@@ -105,16 +121,21 @@ const handleAvatarChange = (e) => {
 }
 
 .user-bubble {
-  background: linear-gradient(135deg, #7c83fd 0%, #9672fb 100%);
+  background: linear-gradient(135deg, #7c83fd 0%, #9d72fb 100%);
   color: white;
-  border-bottom-right-radius: 4px;
+  border-bottom-right-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.15);
 }
 
 .bot-bubble {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(8px);
-  color: #2c3e50;
-  border-bottom-left-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #1e293b;
+  border-bottom-left-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.plain {
+  white-space: pre-wrap;
 }
 </style>

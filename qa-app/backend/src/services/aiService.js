@@ -5,7 +5,7 @@ const { compressHistoryIfNeeded } = require('./historyManager');
 const { extractAndSummarizeMemories } = require('./memoryManager');
 
 /**
- * 主聊天服务 (v3.0 - 全面重构)
+ * 主聊天服务 (v4.0 - 智能记忆触发 + stateChange 反馈)
  */
 async function getChatCompletion(payload) {
     const {
@@ -19,21 +19,44 @@ async function getChatCompletion(payload) {
 
     // --- 1. 动态关系引擎 ---
     let updatedRelationshipState = characterSettings.relationshipState;
+    let stateChange = null;
+
     if (updatedRelationshipState && question) {
         console.log(`[关系引擎] 正在分析对 ${characterSettings.basicInfo.name} 的影响...`);
         try {
-            const impact = await analyzeMessageImpact(question, characterSettings.basicInfo.name, updatedRelationshipState);
+            const oldAffection = updatedRelationshipState.affection || 0;
+            const oldMood = updatedRelationshipState.mood || 0;
+
+            const impact = await analyzeMessageImpact(
+                question,
+                characterSettings.basicInfo.name,
+                updatedRelationshipState,
+                characterSettings.preferences
+            );
             console.log(`[关系引擎] 分析结果:`, impact);
             updatedRelationshipState = updateStateObject(updatedRelationshipState, impact);
+
+            const affectionDelta = updatedRelationshipState.affection - oldAffection;
+            const moodDelta = updatedRelationshipState.mood - oldMood;
+            if (Math.abs(affectionDelta) >= 2 || Math.abs(moodDelta) >= 3) {
+                stateChange = { affectionDelta, moodDelta, reason: impact.reason || '' };
+            }
         } catch (err) {
             console.error("[关系引擎] 分析失败:", err.message);
         }
     }
 
-    // --- 2. 记忆提取（每 10 轮触发）---
+    // --- 2. 智能记忆提取 ---
     let updatedMemory = characterSettings.memory || { longTerm: [], relationshipMemory: [] };
     const historyLength = history ? history.length : 0;
-    if (historyLength > 0 && historyLength % 10 === 0) {
+
+    const shouldExtractMemory = historyLength > 0 && (
+        historyLength % 10 === 0 ||
+        (stateChange && Math.abs(stateChange.affectionDelta) >= 8)
+    );
+    const isShortMessage = question && question.trim().length <= 5;
+
+    if (shouldExtractMemory && !isShortMessage) {
         console.log(`[记忆系统] 触发记忆提取 (已对话 ${historyLength} 条)...`);
         try {
             const newMemory = await extractAndSummarizeMemories(history.slice(-10), updatedMemory);
@@ -55,20 +78,20 @@ async function getChatCompletion(payload) {
 
     const currentHistory = await compressHistoryIfNeeded(history);
     const currentUserMessage = { role: 'user', content: userContent };
-    
+
     const messages = [
         { role: 'system', content: systemPrompt },
         ...currentHistory,
         currentUserMessage
     ];
 
-    console.log(`Calling API with model: ${payload.model || 'default'}... (${messages.length} messages)`);
+    console.log(`Calling API... (${messages.length} messages)`);
 
     const data = await callLLM(messages, {
         temperature,
         top_p,
-        thinking: true,   // 主对话启用思考功能
-        timeout: 90000    // 主对话适当延长超时至 90 秒
+        thinking: true,
+        timeout: 90000
     });
 
     if (!data.choices || data.choices.length === 0) {
@@ -88,7 +111,8 @@ async function getChatCompletion(payload) {
         answer,
         history: nextApiHistory,
         relationshipState: updatedRelationshipState,
-        memory: updatedMemory
+        memory: updatedMemory,
+        stateChange
     };
 }
 
