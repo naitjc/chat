@@ -1,11 +1,12 @@
 <script setup>
-import { ref, inject, computed, defineAsyncComponent, onMounted, watch } from 'vue'
+import { ref, reactive, inject, computed, defineAsyncComponent, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useChatStore } from '../store/chatStore'
 import {
   Brush,
   ChatLineRound,
   ChatDotRound,
+  Connection,
   Download,
   EditPen,
   MoreFilled,
@@ -14,6 +15,10 @@ import {
   Setting,
 } from '@element-plus/icons-vue'
 import { readOptimizedImage } from '../utils/imageFile'
+import { isNativeApp } from '../services/platform'
+
+const nativeSettingsService = () => import('../services/nativeModelSettings')
+const nativeLlmService = () => import('../services/nativeLlmRuntime')
 
 const CharacterWizard = defineAsyncComponent(() => import('./CharacterWizard.vue'))
 
@@ -37,6 +42,10 @@ const selectedCharacterId = ref('')
 const backgroundInputRef = ref(null)
 const showWizard = ref(false)
 const showMoreMenu = ref(false)
+const nativeSettingsOpen = ref(false)
+const isTestingNativeModel = ref(false)
+const isSavingNativeModel = ref(false)
+const nativeModelSettings = reactive({ apiURL: '', apiKey: '', model: '' })
 
 const themes = [
   { id: 'default', label: '✨ 默认', color: '#7c83fd' },
@@ -65,6 +74,16 @@ onMounted(async () => {
     console.error('加载角色失败:', error)
     ElMessage.error('预设角色加载失败，请刷新页面重试')
   }
+
+  if (isNativeApp) {
+    try {
+      const { loadNativeModelSettings } = await nativeSettingsService()
+      Object.assign(nativeModelSettings, await loadNativeModelSettings())
+      if (!nativeModelSettings.apiKey) nativeSettingsOpen.value = true
+    } catch (error) {
+      ElMessage.error(`无法读取模型配置：${error.message}`)
+    }
+  }
 })
 
 const onCharacterSelect = () => {
@@ -87,11 +106,6 @@ const handleBackgroundChange = async (e) => {
     ElMessage.error(error.message)
   }
   e.target.value = ''
-}
-
-const startNewChapter = () => {
-  chatStore.createNextChapter()
-  showMoreMenu.value = false
 }
 
 const deleteCustomChar = (charId) => {
@@ -123,6 +137,46 @@ const applyTheme = (theme) => {
 const openWizard = () => {
   showWizard.value = true
   showMoreMenu.value = false
+}
+
+const openNativeSettings = async () => {
+  const { loadNativeModelSettings } = await nativeSettingsService()
+  Object.assign(nativeModelSettings, await loadNativeModelSettings())
+  nativeSettingsOpen.value = true
+  showMoreMenu.value = false
+}
+
+const saveNativeSettings = async () => {
+  isSavingNativeModel.value = true
+  try {
+    const { saveNativeModelSettings } = await nativeSettingsService()
+    Object.assign(
+      nativeModelSettings,
+      await saveNativeModelSettings(nativeModelSettings),
+    )
+    nativeSettingsOpen.value = false
+    ElMessage.success('模型配置已安全保存在本机')
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    isSavingNativeModel.value = false
+  }
+}
+
+const testNativeSettings = async () => {
+  isTestingNativeModel.value = true
+  try {
+    const { saveNativeModelSettings } = await nativeSettingsService()
+    const { testNativeModelConnection } = await nativeLlmService()
+    const settings = await saveNativeModelSettings(nativeModelSettings)
+    Object.assign(nativeModelSettings, settings)
+    await testNativeModelConnection(settings)
+    ElMessage.success('模型接口连接成功')
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    isTestingNativeModel.value = false
+  }
 }
 
 const onWizardSave = (character) => {
@@ -281,22 +335,16 @@ const displayName = computed(() => {
                 <el-icon><Download /></el-icon>
                 <span>导出对话</span>
               </el-button>
-              <el-popconfirm
-                title="结束当前章节，并在同一关系中开启新章节？"
-                confirm-button-text="开启"
-                cancel-button-text="取消"
-                @confirm="startNewChapter"
-              >
-                <template #reference>
-                  <el-button
-                    class="menu-action"
-                    :disabled="!chatStore.activeConversationId || chatStore.isActiveChapterReadOnly"
-                  >
-                    <el-icon><ChatDotRound /></el-icon>
-                    <span>开启新章节</span>
-                  </el-button>
-                </template>
-              </el-popconfirm>
+            </div>
+          </section>
+
+          <section v-if="isNativeApp" class="menu-section">
+            <div class="menu-section-title"><el-icon><Connection /></el-icon> 本地应用</div>
+            <div class="menu-actions-grid single-action">
+              <el-button class="menu-action" @click="openNativeSettings">
+                <el-icon><Setting /></el-icon>
+                <span>模型 API 设置</span>
+              </el-button>
             </div>
           </section>
         </div>
@@ -308,6 +356,43 @@ const displayName = computed(() => {
 
   <!-- 角色创建向导 -->
   <CharacterWizard v-if="showWizard" @save="onWizardSave" @close="showWizard = false" />
+
+  <el-dialog
+    v-if="isNativeApp"
+    v-model="nativeSettingsOpen"
+    title="模型 API 设置"
+    width="min(92vw, 460px)"
+    :close-on-click-modal="false"
+  >
+    <p class="native-settings-note">
+      聊天数据保存在手机 SQLite 中；以下密钥只保存在系统安全存储，不会写入安装包。
+    </p>
+    <el-form label-position="top">
+      <el-form-item label="OpenAI 兼容 API 地址">
+        <el-input v-model="nativeModelSettings.apiURL" placeholder="https://example.com/v1" />
+      </el-form-item>
+      <el-form-item label="API Key">
+        <el-input
+          v-model="nativeModelSettings.apiKey"
+          type="password"
+          show-password
+          autocomplete="off"
+          placeholder="输入你自己的 API Key"
+        />
+      </el-form-item>
+      <el-form-item label="模型名称">
+        <el-input v-model="nativeModelSettings.model" placeholder="例如 GLM-5" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button :loading="isTestingNativeModel" @click="testNativeSettings">
+        测试连接
+      </el-button>
+      <el-button type="primary" :loading="isSavingNativeModel" @click="saveNativeSettings">
+        保存
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -448,6 +533,16 @@ const displayName = computed(() => {
 .menu-action-emoji {
   width: 1em;
   text-align: center;
+}
+
+.native-settings-note {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .danger-action,

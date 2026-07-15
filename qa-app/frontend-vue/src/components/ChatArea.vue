@@ -8,6 +8,7 @@ import MessageInput from './chat/MessageInput.vue'
 
 const chatStore = useChatStore()
 const chatBoxRef = ref(null)
+const isAcceptingSuggestion = ref(false)
 
 const scrollToBottom = async () => {
   await nextTick()
@@ -65,6 +66,39 @@ const forkFromReadonly = async () => {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(error.message || '创建分支失败')
     }
+  }
+}
+
+const continueCurrentChapter = () => {
+  chatStore.dismissChapterSuggestion()
+  ElMessage.info('继续当前章节，稍后会重新判断故事节奏')
+}
+
+const acceptChapterSuggestion = async () => {
+  const suggestion = chatStore.chapterSuggestion
+  if (!suggestion) return
+  const nextNumber = Number(chatStore.activeConversation?.chapterNumber || 1) + 1
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `模型判断：${suggestion.reason}。确认后当前章节将归档为只读。`,
+      `建议进入第 ${nextNumber} 章`,
+      {
+        inputValue: suggestion.title,
+        inputPattern: /\S+/,
+        inputErrorMessage: '章节名称不能为空',
+        confirmButtonText: '确认并进入',
+        cancelButtonText: '取消',
+      },
+    )
+    isAcceptingSuggestion.value = true
+    const result = await chatStore.createNextChapter({ title: value.trim() })
+    if (result) ElMessage.success(`已进入“${result.conversation.title}”`)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || '创建章节失败')
+    }
+  } finally {
+    isAcceptingSuggestion.value = false
   }
 }
 </script>
@@ -169,6 +203,34 @@ const forkFromReadonly = async () => {
       </div>
     </div>
 
+    <Transition name="chapter-suggestion">
+      <aside
+        v-if="chatStore.chapterSuggestion"
+        class="chapter-suggestion-card"
+        aria-live="polite"
+      >
+        <span class="chapter-suggestion-icon">✨</span>
+        <div class="chapter-suggestion-copy">
+          <strong>本章似乎告一段落</strong>
+          <span>{{ chatStore.chapterSuggestion.reason }}</span>
+          <small>建议下一章：{{ chatStore.chapterSuggestion.title }}</small>
+        </div>
+        <div class="chapter-suggestion-actions">
+          <el-button size="small" text @click="continueCurrentChapter">
+            继续本章
+          </el-button>
+          <el-button
+            size="small"
+            type="primary"
+            :loading="isAcceptingSuggestion"
+            @click="acceptChapterSuggestion"
+          >
+            进入下一章
+          </el-button>
+        </div>
+      </aside>
+    </Transition>
+
     <!-- 输入区域 -->
     <MessageInput />
   </el-card>
@@ -226,6 +288,59 @@ const forkFromReadonly = async () => {
   border-bottom: 1px solid var(--border-glass);
   background: color-mix(in srgb, var(--primary) 7%, var(--bg-glass));
   z-index: 4;
+}
+
+.chapter-suggestion-card {
+  margin: 10px 12px 0;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, #8b5cf6 11%, var(--bg-glass));
+  border: 1px solid color-mix(in srgb, #8b5cf6 28%, var(--border-glass));
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.chapter-suggestion-icon {
+  flex-shrink: 0;
+  font-size: 22px;
+}
+
+.chapter-suggestion-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.chapter-suggestion-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.chapter-suggestion-copy small {
+  color: var(--text-accent);
+}
+
+.chapter-suggestion-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.chapter-suggestion-enter-active,
+.chapter-suggestion-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.chapter-suggestion-enter-from,
+.chapter-suggestion-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 .mode-context.story {
@@ -407,6 +522,16 @@ const forkFromReadonly = async () => {
 
   .message-stream {
     gap: 16px;
+  }
+
+  .chapter-suggestion-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .chapter-suggestion-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>

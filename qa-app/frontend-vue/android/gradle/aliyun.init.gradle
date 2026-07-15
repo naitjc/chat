@@ -1,0 +1,13 @@
+// Maven Central is blocked on some networks. Add mirrors before every project
+// is evaluated so Capacitor plugin buildscript dependencies use them as well.
+gradle.beforeProject { project ->
+    project.buildscript.repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+    }
+
+    project.repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+    }
+}

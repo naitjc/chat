@@ -1,5 +1,9 @@
+import { isNativeApp } from "../services/platform";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8888";
 const REQUEST_TIMEOUT_MS = 15000;
+const nativeStore = () => import("../services/nativeConversationStore");
+const nativeRuntime = () => import("../services/nativeLlmRuntime");
 
 async function request(path, options = {}) {
   const controller = new AbortController();
@@ -30,21 +34,28 @@ async function request(path, options = {}) {
 }
 
 export async function listConversations() {
+  if (isNativeApp) {
+    const relationships = await (await nativeStore()).listRelationships();
+    return relationships.flatMap((relationship) => relationship.chapters || []);
+  }
   const data = await request("/conversations");
   return data.conversations;
 }
 
 export async function listRelationships() {
+  if (isNativeApp) return (await nativeStore()).listRelationships();
   const data = await request("/relationships");
   return data.relationships;
 }
 
 export async function getRelationship(id) {
+  if (isNativeApp) return (await nativeStore()).getRelationship(id);
   const data = await request(`/relationships/${encodeURIComponent(id)}`);
   return data.relationship;
 }
 
 export async function createRelationship(payload) {
+  if (isNativeApp) return (await nativeStore()).createRelationship(payload);
   return request("/relationships", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -52,6 +63,7 @@ export async function createRelationship(payload) {
 }
 
 export async function renameRelationship(id, title) {
+  if (isNativeApp) return (await nativeStore()).renameRelationship(id, title);
   const data = await request(
     `/relationships/${encodeURIComponent(id)}/title`,
     {
@@ -63,6 +75,9 @@ export async function renameRelationship(id, title) {
 }
 
 export async function updateRelationshipSettings(id, payload) {
+  if (isNativeApp) {
+    return (await nativeStore()).updateRelationshipSettings(id, payload);
+  }
   const data = await request(
     `/relationships/${encodeURIComponent(id)}/settings`,
     {
@@ -74,12 +89,37 @@ export async function updateRelationshipSettings(id, payload) {
 }
 
 export async function deleteRelationship(id) {
+  if (isNativeApp) {
+    await (await nativeStore()).deleteRelationship(id);
+    return;
+  }
   await request(`/relationships/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
 }
 
 export async function createNextChapter(relationshipId, payload) {
+  if (isNativeApp) {
+    const store = await nativeStore();
+    const source = await store.getConversation(payload.sourceConversationId);
+    if (!source) throw new Error("源章节不存在");
+    let summary = String(payload.summary || "").trim();
+    if (!summary) {
+      try {
+        summary = await (await nativeRuntime()).summarizeNativeChapter(
+          source.snapshot?.apiHistory || [],
+        );
+      } catch {
+        summary = source.preview
+          ? `本章最后围绕“${source.preview.slice(0, 120)}”展开。`
+          : "本章完整内容保留在上一章节。";
+      }
+    }
+    return store.createNextChapter(payload.sourceConversationId, {
+      ...payload,
+      summary,
+    });
+  }
   return request(
     `/relationships/${encodeURIComponent(relationshipId)}/chapters`,
     {
@@ -89,7 +129,48 @@ export async function createNextChapter(relationshipId, payload) {
   );
 }
 
+export async function requestChapterSuggestion(relationshipId, payload) {
+  if (isNativeApp) {
+    const store = await nativeStore();
+    const source = await store.getConversation(payload.sourceConversationId);
+    if (!source) throw new Error("源章节不存在");
+    const relationship = await store.getRelationship(relationshipId);
+    if (relationship?.mode !== "story") {
+      return { checkedMessageCount: 0, suggestion: null };
+    }
+    return (await nativeRuntime()).adviseNativeChapter({
+      history: source.snapshot?.conversationHistory || [],
+      goal: relationship.goal,
+      chapterNumber: source.chapterNumber,
+      chapterTitle: source.title,
+    });
+  }
+  return request(
+    `/relationships/${encodeURIComponent(relationshipId)}/chapter-suggestion`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
 export async function forkConversation(id, payload = {}) {
+  if (isNativeApp) {
+    const store = await nativeStore();
+    const source = await store.getConversation(id);
+    if (!source) throw new Error("源章节不存在");
+    let summary = String(payload.summary || source.summary || "").trim();
+    if (!summary) {
+      try {
+        summary = await (await nativeRuntime()).summarizeNativeChapter(
+          source.snapshot?.apiHistory || [],
+        );
+      } catch {
+        summary = source.preview || "分支从此处开始。";
+      }
+    }
+    return store.forkConversation(id, { ...payload, summary });
+  }
   return request(`/conversations/${encodeURIComponent(id)}/fork`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -97,11 +178,20 @@ export async function forkConversation(id, payload = {}) {
 }
 
 export async function getConversation(id) {
+  if (isNativeApp) return (await nativeStore()).getConversation(id);
   const data = await request(`/conversations/${encodeURIComponent(id)}`);
   return data.conversation;
 }
 
 export async function createConversation(payload) {
+  if (isNativeApp) {
+    const store = await nativeStore();
+    if (payload.relationshipId && payload.sourceConversationId) {
+      const result = await store.createNextChapter(payload.sourceConversationId, payload);
+      return result.conversation;
+    }
+    return (await store.createRelationship(payload)).conversation;
+  }
   const data = await request("/conversations", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -110,6 +200,7 @@ export async function createConversation(payload) {
 }
 
 export async function updateConversation(id, payload) {
+  if (isNativeApp) return (await nativeStore()).updateConversation(id, payload);
   const data = await request(`/conversations/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -118,6 +209,7 @@ export async function updateConversation(id, payload) {
 }
 
 export async function renameConversation(id, title) {
+  if (isNativeApp) return (await nativeStore()).renameConversation(id, title);
   const data = await request(
     `/conversations/${encodeURIComponent(id)}/title`,
     {
@@ -129,6 +221,10 @@ export async function renameConversation(id, title) {
 }
 
 export async function deleteConversation(id) {
+  if (isNativeApp) {
+    await (await nativeStore()).deleteConversation(id);
+    return;
+  }
   await request(`/conversations/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
@@ -141,6 +237,14 @@ export async function sendMessageStream(
   payload,
   { onChunk, onState, onDone, onError } = {},
 ) {
+  if (isNativeApp) {
+    return (await nativeRuntime()).sendNativeMessage(payload, {
+      onChunk,
+      onState,
+      onDone,
+      onError,
+    });
+  }
   const response = await fetch(`${API_URL}/qa/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

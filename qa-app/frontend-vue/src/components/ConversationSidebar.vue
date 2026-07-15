@@ -9,6 +9,7 @@ const chatStore = useChatStore()
 
 const createDialogOpen = ref(false)
 const isCreating = ref(false)
+const isCreatingChapter = ref(false)
 const createForm = reactive({ mode: 'free', title: '', goal: '' })
 
 const currentCharacterId = computed(() => chatStore.characterSettings.id || '')
@@ -33,8 +34,15 @@ const canCreateChapter = computed(
     Boolean(chatStore.activeConversationId) &&
     !chatStore.isActiveChapterReadOnly &&
     !chatStore.isSending &&
-    !chatStore.isConversationLoading,
+    !chatStore.isConversationLoading &&
+    !isCreatingChapter.value,
 )
+const chapterActionHint = computed(() => {
+  if (chatStore.isSending) return '请等待当前回复完成'
+  if (chatStore.isConversationLoading || isCreatingChapter.value) return '正在创建下一章'
+  if (chatStore.isActiveChapterReadOnly) return '先返回当前章节，才能进入下一章'
+  return ''
+})
 
 const formatUpdatedAt = (value) => {
   if (!value) return ''
@@ -108,25 +116,36 @@ const submitArchive = async () => {
 }
 
 const createChapter = async (relationship) => {
-  const nextNumber = (relationship.chapters?.length || 0) + 1
+  if (!canCreateChapter.value) return
+  const currentChapter = chatStore.activeConversation
+  const nextNumber = Number(
+    currentChapter?.chapterNumber || relationship.chapters?.length || 0,
+  ) + 1
+  const currentTitle = currentChapter?.title || `第 ${nextNumber - 1} 章`
   try {
     const { value } = await ElMessageBox.prompt(
-      '你决定何时进入下一章。当前聊天会保存为上一章，关系与记忆继续保留。',
-      '进入下一章',
+      `“${currentTitle}”将归档为只读，系统会生成本章提要；关系、记忆和最终目标会继续保留。`,
+      `结束本章，进入第 ${nextNumber} 章`,
       {
         inputValue: `第 ${nextNumber} 章`,
         inputPattern: /\S+/,
         inputErrorMessage: '章节名称不能为空',
-        confirmButtonText: '进入下一章',
+        confirmButtonText: '确认并进入',
         cancelButtonText: '取消',
       },
     )
-    await chatStore.createNextChapter({ title: value.trim() })
-    emit('selected')
+    isCreatingChapter.value = true
+    const result = await chatStore.createNextChapter({ title: value.trim() })
+    if (result) {
+      ElMessage.success(`已进入“${result.conversation.title}”`)
+      emit('selected')
+    }
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(error.message || '创建章节失败')
     }
+  } finally {
+    isCreatingChapter.value = false
   }
 }
 
@@ -444,16 +463,17 @@ const handleChapterCommand = (command, relationship, chapter) => {
 
             <el-tooltip
               :disabled="canCreateChapter"
-              content="先返回当前章节，才能进入下一章"
+              :content="chapterActionHint"
               placement="top"
             >
               <el-button
                 :icon="DocumentAdd"
                 class="new-chapter-button"
                 :disabled="!canCreateChapter"
+                :loading="isCreatingChapter"
                 @click="createChapter(relationship)"
               >
-                手动进入下一章
+                结束本章，进入下一章
               </el-button>
             </el-tooltip>
           </template>

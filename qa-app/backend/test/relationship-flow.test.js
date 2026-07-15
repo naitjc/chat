@@ -12,6 +12,10 @@ const store = require("../src/services/conversationStore");
 const { updateStateObject } = require("../src/services/stateEngine");
 const { buildSystemPrompt } = require("../src/services/promptBuilder");
 const { validateChatInput } = require("../src/controllers/chatController");
+const {
+  dialogueMessages,
+  parseChapterDecision,
+} = require("../src/services/chapterAdvisor");
 
 function snapshot() {
   return {
@@ -160,4 +164,39 @@ test("relationship state clamps model output and preserves the stranger stage", 
   assert.equal(low.mood, -15);
   assert.equal(low.relationshipStage, "stranger");
   assert.equal(low.distance, "distant");
+});
+
+test("chapter advisor accepts only confident structured suggestions", () => {
+  assert.deepEqual(
+    parseChapterDecision(`\n\`\`\`json
+      {"should_end":true,"confidence":0.86,"reason":"当前冲突已经解决","next_title":"雨后的约定"}
+    \`\`\``),
+    {
+      title: "雨后的约定",
+      reason: "当前冲突已经解决",
+      confidence: 0.86,
+    },
+  );
+  assert.equal(
+    parseChapterDecision(
+      '{"should_end":true,"confidence":0.5,"reason":"只是暂停","next_title":"下一章"}',
+    ),
+    null,
+  );
+  assert.equal(parseChapterDecision("不是 JSON"), null);
+});
+
+test("chapter advisor counts only usable dialogue messages", () => {
+  assert.deepEqual(
+    dialogueMessages([
+      { role: "system", content: "提要" },
+      { role: "user", content: " 你好 " },
+      { role: "assistant", content: "你好。" },
+      { role: "assistant", content: "" },
+    ]),
+    [
+      { role: "user", content: "你好" },
+      { role: "assistant", content: "你好。" },
+    ],
+  );
 });

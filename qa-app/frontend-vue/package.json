@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew --init-script gradle/aliyun.init.gradle assembleDebug"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor-community/sqlite": "^8.1.0",
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
     "@element-plus/icons-vue": "^2.3.2",
     "dompurify": "^3.4.12",
     "element-plus": "^2.11.9",
@@ -17,6 +23,7 @@
     "vue": "^3.5.24"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.2",
     "@vitejs/plugin-vue": "^6.0.1",
     "vite": "^7.2.4"
   }

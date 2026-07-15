@@ -8,6 +8,7 @@ import {
   listRelationships as listRelationshipsApi,
   renameConversation as renameConversationApi,
   renameRelationship as renameRelationshipApi,
+  requestChapterSuggestion as requestChapterSuggestionApi,
   sendMessageStream,
   updateConversation as updateConversationApi,
   updateRelationshipSettings as updateRelationshipSettingsApi,
@@ -44,6 +45,8 @@ const DEFAULT_CHARACTER = {
 
 let saveTimer = null;
 let saveSequence = Promise.resolve();
+const MIN_CHAPTER_CHECK_MESSAGES = 8;
+const CHAPTER_CHECK_INTERVAL = 6;
 
 const withoutSnapshot = ({ snapshot, checkpoint, relationship, ...metadata }) =>
   metadata;
@@ -60,6 +63,13 @@ export const useChatStore = defineStore("chat", {
     isSending: false,
     streamingContent: "",
     stateChangeNotice: null,
+    chapterSuggestion: null,
+    isChapterSuggestionLoading: false,
+    chapterSuggestionCheck: {
+      conversationId: "",
+      lastCheckedMessageCount: 0,
+      dismissedUntilMessageCount: 0,
+    },
 
     bookmarkedIndices: [],
     searchQuery: "",
@@ -110,6 +120,25 @@ export const useChatStore = defineStore("chat", {
   actions: {
     _makeTimestamp() {
       return new Date().toISOString();
+    },
+
+    _dialogueMessageCount() {
+      return this.conversationHistory.filter(
+        (message) =>
+          (message.role === "user" || message.role === "assistant") &&
+          typeof message.content === "string" &&
+          message.content.trim(),
+      ).length;
+    },
+
+    _resetChapterSuggestion() {
+      this.chapterSuggestion = null;
+      this.isChapterSuggestionLoading = false;
+      this.chapterSuggestionCheck = {
+        conversationId: this.activeConversationId || "",
+        lastCheckedMessageCount: 0,
+        dismissedUntilMessageCount: 0,
+      };
     },
 
     _buildSnapshot() {
@@ -213,6 +242,7 @@ export const useChatStore = defineStore("chat", {
       this.showSearch = false;
       this.streamingContent = "";
       this.stateChangeNotice = null;
+      this._resetChapterSuggestion();
       this._characterDefaults = { relationshipState: null, memory: null };
     },
 
@@ -286,6 +316,7 @@ export const useChatStore = defineStore("chat", {
       this.isSending = false;
       this.streamingContent = "";
       this.stateChangeNotice = null;
+      this._resetChapterSuggestion();
       this._upsertConversationMetadata(conversation);
       this._isHydratingConversation = false;
     },
@@ -435,6 +466,69 @@ export const useChatStore = defineStore("chat", {
       } finally {
         this.isConversationLoading = false;
       }
+    },
+
+    async checkChapterSuggestion({ alreadyPersisted = false } = {}) {
+      if (
+        !this.isStoryMode ||
+        !this.activeRelationshipId ||
+        !this.activeConversationId ||
+        this.isActiveChapterReadOnly ||
+        this.isSending ||
+        this.isConversationLoading ||
+        this.isChapterSuggestionLoading ||
+        this.chapterSuggestion
+      ) {
+        return null;
+      }
+
+      const conversationId = this.activeConversationId;
+      const relationshipId = this.activeRelationshipId;
+      const messageCount = this._dialogueMessageCount();
+      if (this.chapterSuggestionCheck.conversationId !== conversationId) {
+        this._resetChapterSuggestion();
+      }
+      const check = this.chapterSuggestionCheck;
+      if (
+        messageCount < MIN_CHAPTER_CHECK_MESSAGES ||
+        messageCount - check.lastCheckedMessageCount < CHAPTER_CHECK_INTERVAL ||
+        messageCount < check.dismissedUntilMessageCount
+      ) {
+        return null;
+      }
+
+      this.isChapterSuggestionLoading = true;
+      try {
+        if (!alreadyPersisted) {
+          const saved = await this.persistActiveConversation({ force: true });
+          if (!saved) return null;
+        }
+        const result = await requestChapterSuggestionApi(relationshipId, {
+          sourceConversationId: conversationId,
+        });
+        if (this.activeConversationId !== conversationId) return null;
+        this.chapterSuggestionCheck.lastCheckedMessageCount =
+          Number(result.checkedMessageCount) || messageCount;
+        this.chapterSuggestion = result.suggestion
+          ? { ...result.suggestion, conversationId }
+          : null;
+        return this.chapterSuggestion;
+      } catch (error) {
+        console.warn("章节节奏判断失败:", error.message);
+        return null;
+      } finally {
+        if (this.activeConversationId === conversationId) {
+          this.isChapterSuggestionLoading = false;
+        }
+      }
+    },
+
+    dismissChapterSuggestion() {
+      const messageCount = this._dialogueMessageCount();
+      this.chapterSuggestion = null;
+      this.chapterSuggestionCheck.dismissedUntilMessageCount =
+        messageCount + CHAPTER_CHECK_INTERVAL;
+      this.chapterSuggestionCheck.lastCheckedMessageCount = messageCount;
     },
 
     async forkFromConversation(conversationId, relationshipTitle = "") {
@@ -781,6 +875,8 @@ export const useChatStore = defineStore("chat", {
       }
       await this.persistActiveConversation({ force: true });
 
+      if (this.chapterSuggestion) this.dismissChapterSuggestion();
+
       this.addMessage("user", question);
       this.isSending = true;
       this.streamingContent = "";
@@ -813,6 +909,7 @@ export const useChatStore = defineStore("chat", {
         top_p: parseFloat(this.modelParams.top_p.toFixed(2)),
       };
 
+      let responseCompleted = false;
       try {
         await sendMessageStream(payload, {
           onChunk: (text) => {
@@ -834,6 +931,7 @@ export const useChatStore = defineStore("chat", {
             }
           },
           onDone: ({ history, memory }) => {
+            responseCompleted = true;
             this.conversationHistory[placeholderIndex] = {
               ...this.conversationHistory[placeholderIndex],
               content: this.streamingContent,
@@ -860,7 +958,10 @@ export const useChatStore = defineStore("chat", {
       } finally {
         this.isSending = false;
         this.streamingContent = "";
-        await this.persistActiveConversation({ force: true });
+        const saved = await this.persistActiveConversation({ force: true });
+        if (responseCompleted && saved) {
+          await this.checkChapterSuggestion({ alreadyPersisted: true });
+        }
       }
     },
   },

@@ -1,5 +1,6 @@
 const conversationStore = require("../services/conversationStore");
 const { summarizeChapter } = require("../services/historyManager");
+const { adviseNextChapter } = require("../services/chapterAdvisor");
 
 function handleError(error, res, next) {
   if (error.code?.startsWith("SQLITE_CONSTRAINT")) {
@@ -170,6 +171,44 @@ async function createNextChapter(req, res, next) {
   }
 }
 
+async function suggestNextChapter(req, res, next) {
+  try {
+    const source = conversationStore.getConversation(
+      req.body?.sourceConversationId,
+    );
+    if (!source) {
+      return res.status(404).json({ error: { message: "源章节不存在" } });
+    }
+    if (source.relationshipId !== req.params.id) {
+      return res.status(400).json({
+        error: { message: "源章节不属于当前关系" },
+      });
+    }
+    if (source.status !== "open") {
+      return res.status(409).json({
+        error: { message: "只有当前章节可以判断章节节奏" },
+      });
+    }
+
+    const relationship = conversationStore.getRelationship(req.params.id);
+    if (relationship?.mode !== "story") {
+      return res.status(409).json({
+        error: { message: "自由模式不使用章节建议" },
+      });
+    }
+
+    const result = await adviseNextChapter({
+      history: source.snapshot?.conversationHistory,
+      goal: relationship.goal,
+      chapterNumber: source.chapterNumber,
+      chapterTitle: source.title,
+    });
+    res.json(result);
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
 async function fork(req, res, next) {
   try {
     const source = conversationStore.getConversation(req.params.id);
@@ -223,6 +262,7 @@ module.exports = {
   renameRelationship,
   updateRelationshipSettings,
   removeRelationship,
+  suggestNextChapter,
   createNextChapter,
   fork,
 };

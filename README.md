@@ -5,7 +5,7 @@
 ## 核心能力
 
 - **自由模式**：连续聊天，不设置主线、章节或预设结局。
-- **故事模式**：创建时设置最终目标；用户决定行动、推进速度和何时进入下一章，模型不会擅自跳章或替用户做关键决定。
+- **故事模式**：创建时设置最终目标；用户决定行动和推进速度。模型只在形成自然收束点时建议切章，必须由用户确认后才会进入下一章。
 - **关系状态**：根据互动更新好感度、情绪、关系阶段和距离，并将状态反映到角色回复中。
 - **持久化与分支**：SQLite 保存角色快照、聊天记录、记忆与章节检查点；故事模式可以从过去章节创建独立分支。
 - **上下文压缩**：长对话自动生成前情提要，控制发送给模型的上下文长度。
@@ -15,7 +15,8 @@
 
 - 前端：Vue 3.5、Pinia 3、Element Plus 2.11、Vite 7
 - 后端：Node.js 22.5+、Express 4、SQLite、Axios
-- 数据：本地 SQLite 数据库，默认位于 `qa-app/backend/data/chat.db`
+- Web 数据：后端 SQLite 数据库，默认位于 `qa-app/backend/data/chat.db`
+- Android：Capacitor 8、原生 SQLite、安全凭据存储
 
 ## 快速开始
 
@@ -61,6 +62,32 @@ cd qa-app/frontend-vue && npm run build
 
 后端还提供 `GET /health` 健康检查接口。
 
+## Android 安装包
+
+Android 与 Web 共用 Vue 界面和聊天状态，但通过运行平台选择不同的数据与模型适配器：
+
+- Web 继续连接现有 Express 后端，使用后端 SQLite 与 `.env` 中的模型配置。
+- Android 不需要部署本项目后端。聊天存档保存在手机 SQLite，API Key 保存在 Android KeyStore 支持的安全存储中，模型请求从手机直连用户填写的 OpenAI 兼容接口。
+- 两端默认使用各自独立的存档，不会互相覆盖；Android 仍需联网访问所配置的模型服务。
+
+首次打开 Android 应用时，在“模型 API 设置”中填写 API 地址、API Key 和模型名称。
+
+本地构建需要 JDK 21、Android SDK Platform 36 和 Android Build Tools：
+
+```bash
+cd qa-app/frontend-vue
+npm install
+npm run android:apk
+```
+
+调试安装包生成在：
+
+```text
+qa-app/frontend-vue/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+该 APK 使用开发调试签名，适合直接安装测试；正式分发时应改用自己的 release keystore 签名。
+
 ## 主要目录
 
 ```text
@@ -72,13 +99,16 @@ qa-app/
 └── frontend-vue/
     ├── src/components/        # 页面与交互组件
     ├── src/store/             # Pinia 状态和持久化协调
-    ├── src/api/               # 后端请求与 SSE 解析
+    ├── src/api/               # Web / Android 平台适配入口
+    ├── src/services/          # Android SQLite、模型和安全配置实现
+    ├── android/               # Capacitor Android 原生工程
     └── src/utils/             # 图片等通用能力
 ```
 
 ## 数据与安全边界
 
-- `.env`、SQLite 数据库、构建输出和依赖目录已被 Git 忽略。
+- `.env`、SQLite 数据库、APK 构建输出和依赖目录已被 Git 忽略。
 - 聊天接口限制单条消息与历史长度，并对请求进行速率限制。
 - 模型输出 Markdown 在渲染前经过 DOMPurify 清理。
+- Android 清单关闭普通系统备份；模型 API Key 不会写入源码、Web 存储或 APK 配置。
 - 删除存档不可恢复，界面会在执行前要求确认。

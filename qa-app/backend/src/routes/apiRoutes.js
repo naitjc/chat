@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const chatController = require("../controllers/chatController");
 const conversationController = require("../controllers/conversationController");
+const rateLimiter = require("../middleware/rateLimiter");
 
 router.get("/health", (req, res) => res.json({ status: "ok" }));
 router.post("/qa/stream", chatController.handleChatStream);
@@ -18,6 +19,11 @@ router.patch(
   conversationController.updateRelationshipSettings,
 );
 router.delete("/relationships/:id", conversationController.removeRelationship);
+router.post(
+  "/relationships/:id/chapter-suggestion",
+  rateLimiter,
+  conversationController.suggestNextChapter,
+);
 router.post(
   "/relationships/:id/chapters",
   conversationController.createNextChapter,
