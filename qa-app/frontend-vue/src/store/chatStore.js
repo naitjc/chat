@@ -1,16 +1,29 @@
 import { defineStore } from "pinia";
 import {
-  createConversation as createConversationApi,
-  deleteConversation as deleteConversationApi,
+  createNextChapter as createNextChapterApi,
+  createRelationship as createRelationshipApi,
+  deleteRelationship as deleteRelationshipApi,
+  forkConversation as forkConversationApi,
   getConversation as getConversationApi,
-  listConversations as listConversationsApi,
+  listRelationships as listRelationshipsApi,
   renameConversation as renameConversationApi,
+  renameRelationship as renameRelationshipApi,
   sendMessageStream,
   updateConversation as updateConversationApi,
+  updateRelationshipSettings as updateRelationshipSettingsApi,
 } from "../api/chat";
 
 const cloneValue = (value) =>
   value == null ? value : JSON.parse(JSON.stringify(value));
+
+const readStoredArray = (key) => {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+};
 
 const DEFAULT_CHARACTER = {
   basicInfo: { name: "", age: "", gender: "", userNickname: "" },
@@ -32,7 +45,8 @@ const DEFAULT_CHARACTER = {
 let saveTimer = null;
 let saveSequence = Promise.resolve();
 
-const withoutSnapshot = ({ snapshot, ...metadata }) => metadata;
+const withoutSnapshot = ({ snapshot, checkpoint, relationship, ...metadata }) =>
+  metadata;
 
 export const useChatStore = defineStore("chat", {
   state: () => ({
@@ -53,25 +67,36 @@ export const useChatStore = defineStore("chat", {
 
     _characterDefaults: { relationshipState: null, memory: null },
 
-    // 服务端 SQLite 会话元数据；完整快照仅在切换时读取。
+    // 存档是长期容器；自由模式只有一个持续会话，故事模式可包含多个章节。
+    relationships: [],
     conversations: [],
+    activeRelationshipId: null,
     activeConversationId: null,
     isConversationLoading: false,
     persistenceReady: false,
     persistenceError: "",
     _isHydratingConversation: false,
 
-    customCharacters: JSON.parse(
-      localStorage.getItem("customCharacters") || "[]",
-    ),
+    customCharacters: readStoredArray("customCharacters"),
     currentTheme: localStorage.getItem("theme") || "default",
   }),
 
   getters: {
+    activeRelationship(state) {
+      return state.relationships.find(
+        (relationship) => relationship.id === state.activeRelationshipId,
+      );
+    },
     activeConversation(state) {
       return state.conversations.find(
         (conversation) => conversation.id === state.activeConversationId,
       );
+    },
+    isActiveChapterReadOnly() {
+      return Boolean(this.activeConversation?.status === "closed");
+    },
+    isStoryMode() {
+      return this.activeRelationship?.mode === "story";
     },
     filteredHistory(state) {
       if (!state.searchQuery.trim()) return state.conversationHistory;
@@ -119,12 +144,17 @@ export const useChatStore = defineStore("chat", {
 
     _buildPersistencePayload() {
       const active = this.activeConversation;
+      const hasUserMessage = this.conversationHistory.some(
+        (message) => message.role === "user" && message.content?.trim(),
+      );
       const lastMessage = [...this.conversationHistory]
         .reverse()
         .find((message) => message.content?.trim());
       const preview = lastMessage?.content?.trim().replace(/\s+/g, " ") || "";
       return {
-        title: active?.titleCustomized ? active.title : this._getAutoTitle(),
+        title: active?.titleCustomized || !hasUserMessage
+          ? active?.title || this._getAutoTitle()
+          : this._getAutoTitle(),
         titleCustomized: Boolean(active?.titleCustomized),
         characterName: this.characterSettings.basicInfo?.name || "",
         preview: preview.slice(0, 100),
@@ -139,9 +169,36 @@ export const useChatStore = defineStore("chat", {
       );
       if (index >= 0) this.conversations[index] = metadata;
       else this.conversations.push(metadata);
-      this.conversations.sort(
+      this.conversations.sort((a, b) => a.chapterNumber - b.chapterNumber);
+
+      const relationshipIndex = this.relationships.findIndex(
+        (item) => item.id === metadata.relationshipId,
+      );
+      if (relationshipIndex >= 0) {
+        const relationship = this.relationships[relationshipIndex];
+        const chapters = [...(relationship.chapters || [])];
+        const chapterIndex = chapters.findIndex(
+          (chapter) => chapter.id === metadata.id,
+        );
+        if (chapterIndex >= 0) chapters[chapterIndex] = metadata;
+        else chapters.push(metadata);
+        chapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
+        this.relationships[relationshipIndex] = {
+          ...relationship,
+          chapters,
+          updatedAt: metadata.updatedAt || relationship.updatedAt,
+        };
+      }
+    },
+
+    _setRelationships(relationships) {
+      this.relationships = cloneValue(relationships || []).sort(
         (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
       );
+      const active = this.relationships.find(
+        (relationship) => relationship.id === this.activeRelationshipId,
+      );
+      this.conversations = cloneValue(active?.chapters || []);
     },
 
     _resetSessionState() {
@@ -200,6 +257,7 @@ export const useChatStore = defineStore("chat", {
       const snapshot = conversation.snapshot || {};
       this._isHydratingConversation = true;
       this.activeConversationId = conversation.id;
+      this.activeRelationshipId = conversation.relationshipId;
       this.userAvatar =
         snapshot.userAvatar || "/avatars/用户默认头像.png";
       this.characterSettings = {
@@ -237,14 +295,22 @@ export const useChatStore = defineStore("chat", {
       this.isConversationLoading = true;
       this.persistenceError = "";
       try {
-        this.conversations = await listConversationsApi();
-        if (this.conversations.length) {
+        this._setRelationships(await listRelationshipsApi());
+        if (this.relationships.length) {
+          const relationship = this.relationships[0];
+          this.activeRelationshipId = relationship.id;
+          this.conversations = cloneValue(relationship.chapters || []);
+          const latestChapter =
+            this.conversations.find((chapter) => chapter.status === "open") ||
+            this.conversations[this.conversations.length - 1];
           const conversation = await getConversationApi(
-            this.conversations[0].id,
+            latestChapter.id,
           );
           this._applyConversation(conversation);
         } else {
-          await this.createConversation();
+          this._resetSessionState();
+          this.activeRelationshipId = null;
+          this.activeConversationId = null;
         }
         this.persistenceReady = true;
       } catch (error) {
@@ -255,36 +321,158 @@ export const useChatStore = defineStore("chat", {
       }
     },
 
-    async createConversation(character = null) {
+    async createRelationship(character = null, options = {}) {
       if (this.isSending) return null;
-      if (this.activeConversationId && this.persistenceReady) {
+      const normalizedOptions = typeof options === "string"
+        ? { title: options, mode: "free", goal: "" }
+        : options || {};
+      const {
+        title: relationshipTitle = "",
+        mode = "free",
+        goal = "",
+      } = normalizedOptions;
+      if (
+        this.activeConversationId &&
+        this.persistenceReady &&
+        !this.isActiveChapterReadOnly
+      ) {
         await this.persistActiveConversation({ force: true });
       }
 
-      this._isHydratingConversation = true;
-      this._resetSessionState();
-      this._applyCharacterTemplate(character);
-      this.activeConversationId = null;
+      let template = cloneValue(character);
+      if (!template && this.characterSettings.basicInfo?.name) {
+        template = cloneValue(this.characterSettings);
+        template.relationshipState = cloneValue(
+          this._characterDefaults.relationshipState,
+        );
+        template.memory = cloneValue(this._characterDefaults.memory);
+      }
+      if (!template?.basicInfo?.name) {
+        this.persistenceError = "请先选择或创建一个角色";
+        return null;
+      }
+
+      const characterName = template.basicInfo?.name || "";
+      const initialDefaults = {
+        relationshipState: cloneValue(template.relationshipState),
+        memory: cloneValue(template.memory),
+      };
+      const initialSnapshot = {
+        schemaVersion: 1,
+        userAvatar: this.userAvatar,
+        characterSettings: cloneValue(template),
+        conversationHistory: [],
+        apiHistory: [],
+        chatBackground: null,
+        modelParams: { temperature: 0.5, top_p: 0.7 },
+        bookmarkedIndices: [],
+        searchQuery: "",
+        showSearch: false,
+        characterDefaults: initialDefaults,
+      };
+
+      this.isConversationLoading = true;
       try {
-        const conversation = await createConversationApi({
-          title: this._getAutoTitle(),
-          titleCustomized: false,
-          characterName: this.characterSettings.basicInfo?.name || "",
+        const result = await createRelationshipApi({
+          relationshipTitle,
+          mode,
+          goal,
+          title: `与${characterName}的对话`,
+          characterName,
           preview: "",
-          snapshot: this._buildSnapshot(),
+          snapshot: initialSnapshot,
         });
-        this.activeConversationId = conversation.id;
-        this._upsertConversationMetadata(conversation);
+        this.activeRelationshipId = result.relationship.id;
+        this._setRelationships(await listRelationshipsApi());
+        this.conversations = cloneValue(result.relationship.chapters || []);
+        this._applyConversation(result.conversation);
         this.persistenceReady = true;
         this.persistenceError = "";
-        return conversation;
+        return result;
       } catch (error) {
-        this.persistenceError = `无法新建会话：${error.message}`;
+        this.persistenceError = `无法新建聊天存档：${error.message}`;
         console.error(this.persistenceError);
         return null;
       } finally {
-        this._isHydratingConversation = false;
+        this.isConversationLoading = false;
       }
+    },
+
+    async createConversation(character = null) {
+      if (character || !this.activeRelationshipId) {
+        return this.createRelationship(character);
+      }
+      return this.createNextChapter();
+    },
+
+    async createNextChapter(suggestion = null) {
+      if (
+        this.isSending ||
+        !this.isStoryMode ||
+        !this.activeRelationshipId ||
+        !this.activeConversationId ||
+        this.isActiveChapterReadOnly
+      ) {
+        return null;
+      }
+      await this.persistActiveConversation({ force: true });
+      this.isConversationLoading = true;
+      this.persistenceError = "";
+      try {
+        const result = await createNextChapterApi(this.activeRelationshipId, {
+          sourceConversationId: this.activeConversationId,
+          title: suggestion?.title || "",
+          summary: suggestion?.summary || "",
+        });
+        this.activeRelationshipId = result.relationship.id;
+        this._setRelationships(await listRelationshipsApi());
+        this.conversations = cloneValue(result.relationship.chapters || []);
+        this._applyConversation(result.conversation);
+        return result;
+      } catch (error) {
+        this.persistenceError = `无法进入下一章：${error.message}`;
+        throw error;
+      } finally {
+        this.isConversationLoading = false;
+      }
+    },
+
+    async forkFromConversation(conversationId, relationshipTitle = "") {
+      if (!conversationId || this.isSending) return null;
+      if (
+        conversationId === this.activeConversationId &&
+        !this.isActiveChapterReadOnly
+      ) {
+        await this.persistActiveConversation({ force: true });
+      }
+      this.isConversationLoading = true;
+      this.persistenceError = "";
+      try {
+        const result = await forkConversationApi(conversationId, {
+          relationshipTitle,
+        });
+        this.activeRelationshipId = result.relationship.id;
+        this._setRelationships(await listRelationshipsApi());
+        this.conversations = cloneValue(result.relationship.chapters || []);
+        this._applyConversation(result.conversation);
+        return result;
+      } catch (error) {
+        this.persistenceError = `无法创建分支故事：${error.message}`;
+        throw error;
+      } finally {
+        this.isConversationLoading = false;
+      }
+    },
+
+    async switchRelationship(id) {
+      if (!id || id === this.activeRelationshipId) return;
+      const relationship = this.relationships.find((item) => item.id === id);
+      if (!relationship) return;
+      const chapters = relationship.chapters || [];
+      const target =
+        chapters.find((chapter) => chapter.status === "open") ||
+        chapters[chapters.length - 1];
+      if (target) await this.switchConversation(target.id);
     },
 
     async switchConversation(id) {
@@ -296,7 +484,7 @@ export const useChatStore = defineStore("chat", {
       ) {
         return;
       }
-      if (this.activeConversationId) {
+      if (this.activeConversationId && !this.isActiveChapterReadOnly) {
         await this.persistActiveConversation({ force: true });
       }
 
@@ -304,6 +492,11 @@ export const useChatStore = defineStore("chat", {
       this.persistenceError = "";
       try {
         const conversation = await getConversationApi(id);
+        this.activeRelationshipId = conversation.relationshipId;
+        const relationship = this.relationships.find(
+          (item) => item.id === conversation.relationshipId,
+        );
+        this.conversations = cloneValue(relationship?.chapters || []);
         this._applyConversation(conversation);
       } catch (error) {
         this.persistenceError = `无法切换会话：${error.message}`;
@@ -317,6 +510,7 @@ export const useChatStore = defineStore("chat", {
       if (
         !this.persistenceReady ||
         !this.activeConversationId ||
+        this.isActiveChapterReadOnly ||
         this._isHydratingConversation ||
         this.isSending
       ) {
@@ -329,6 +523,7 @@ export const useChatStore = defineStore("chat", {
     async persistActiveConversation({ force = false } = {}) {
       if (
         !this.activeConversationId ||
+        this.isActiveChapterReadOnly ||
         this._isHydratingConversation ||
         (this.isSending && !force)
       ) {
@@ -365,26 +560,80 @@ export const useChatStore = defineStore("chat", {
       }
     },
 
-    async deleteConversation(id) {
-      if (!id || this.isSending) return;
+    async renameRelationship(id, title) {
       try {
-        await deleteConversationApi(id);
-        this.conversations = this.conversations.filter(
-          (conversation) => conversation.id !== id,
+        const relationship = await renameRelationshipApi(id, title);
+        const index = this.relationships.findIndex((item) => item.id === id);
+        if (index >= 0) this.relationships[index] = relationship;
+        this.relationships.sort(
+          (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
         );
-        if (this.activeConversationId !== id) return;
+        this.persistenceError = "";
+      } catch (error) {
+        this.persistenceError = `存档重命名失败：${error.message}`;
+        throw error;
+      }
+    },
 
+    async updateStoryGoal(id, goal) {
+      try {
+        const relationship = await updateRelationshipSettingsApi(id, { goal });
+        const index = this.relationships.findIndex((item) => item.id === id);
+        if (index >= 0) this.relationships[index] = relationship;
+        this.relationships.sort(
+          (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
+        );
+        this.persistenceError = "";
+        return relationship;
+      } catch (error) {
+        this.persistenceError = `目标保存失败：${error.message}`;
+        throw error;
+      }
+    },
+
+    async deleteRelationship(id) {
+      if (!id || this.isSending) return;
+      const deletedRelationship = this.relationships.find(
+        (relationship) => relationship.id === id,
+      );
+      const characterTemplate = cloneValue(this.characterSettings);
+      const characterDefaults = cloneValue(this._characterDefaults);
+      try {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        await saveSequence.catch(() => null);
+        await deleteRelationshipApi(id);
+        this._setRelationships(
+          this.relationships.filter((relationship) => relationship.id !== id),
+        );
+        if (this.activeRelationshipId !== id) return;
+
+        this.activeRelationshipId = null;
         this.activeConversationId = null;
-        if (this.conversations.length) {
-          const conversation = await getConversationApi(
-            this.conversations[0].id,
-          );
-          this._applyConversation(conversation);
+        const sameCharacterRelationships = this.relationships.filter(
+          (relationship) =>
+            relationship.characterId === deletedRelationship?.characterId ||
+            relationship.characterName === deletedRelationship?.characterName,
+        );
+        if (sameCharacterRelationships.length) {
+          const nextRelationship = sameCharacterRelationships[0];
+          const chapters = nextRelationship.chapters || [];
+          const target =
+            chapters.find((chapter) => chapter.status === "open") ||
+            chapters[chapters.length - 1];
+          if (target) {
+            this.activeRelationshipId = nextRelationship.id;
+            this.conversations = cloneValue(chapters);
+            this._applyConversation(await getConversationApi(target.id));
+          }
         } else {
-          await this.createConversation();
+          this._resetSessionState();
+          this._applyCharacterTemplate(characterTemplate);
+          this._characterDefaults = characterDefaults;
+          this.conversations = [];
         }
       } catch (error) {
-        this.persistenceError = `删除会话失败：${error.message}`;
+        this.persistenceError = `删除存档失败：${error.message}`;
         throw error;
       }
     },
@@ -400,25 +649,36 @@ export const useChatStore = defineStore("chat", {
     },
 
     async setCharacter(character) {
-      if (this.isSending) return;
-      if (!this.activeConversationId) {
-        await this.createConversation(character);
-        return;
-      }
+      if (this.isSending || !character) return;
 
       const currentId =
         this.characterSettings?.id || this.characterSettings?.basicInfo?.name;
       const nextId = character?.id || character?.basicInfo?.name;
       if (currentId === nextId) return;
 
-      // 已有消息时切换角色会创建新会话，防止角色上下文混用。
-      if (this.conversationHistory.length) {
-        await this.createConversation(character);
+      const existingRelationship = this.relationships.find(
+        (relationship) =>
+          relationship.characterId === nextId ||
+          relationship.characterName === character.basicInfo?.name,
+      );
+      if (existingRelationship) {
+        await this.switchRelationship(existingRelationship.id);
         return;
       }
-
+      if (
+        this.activeConversationId &&
+        this.persistenceReady &&
+        !this.isActiveChapterReadOnly
+      ) {
+        await this.persistActiveConversation({ force: true });
+      }
+      this._resetSessionState();
       this._applyCharacterTemplate(character);
-      await this.persistActiveConversation({ force: true });
+      this.activeRelationshipId = null;
+      this.activeConversationId = null;
+      this.conversations = [];
+      this.persistenceError = "";
+      this.persistenceReady = true;
     },
 
     resetCharacter() {
@@ -441,21 +701,16 @@ export const useChatStore = defineStore("chat", {
       this.scheduleConversationSave();
     },
 
-    clearHistory() {
-      this.conversationHistory = [];
-      this.apiHistory = [];
-      this.streamingContent = "";
-      this.bookmarkedIndices = [];
-      this.searchQuery = "";
-      this.showSearch = false;
-      this.stateChangeNotice = null;
-      this.characterSettings.relationshipState = cloneValue(
-        this._characterDefaults.relationshipState,
-      );
-      this.characterSettings.memory = cloneValue(
-        this._characterDefaults.memory,
-      );
-      this.scheduleConversationSave();
+    async clearHistory() {
+      if (this.isStoryMode) return this.createNextChapter();
+      const name = this.characterSettings.basicInfo?.name || "角色";
+      const count = this.relationships.filter(
+        (relationship) => relationship.characterName === name && relationship.mode === "free",
+      ).length;
+      return this.createRelationship(null, {
+        mode: "free",
+        title: `${name} · 自由聊天 ${count + 1}`,
+      });
     },
 
     addMessage(role, content, extra = {}) {
@@ -516,8 +771,15 @@ export const useChatStore = defineStore("chat", {
     },
 
     async sendMessage(question) {
-      if (!question.trim() || this.isSending) return;
-      if (!this.activeConversationId) await this.createConversation();
+      if (
+        !question.trim() ||
+        this.isSending ||
+        !this.activeConversationId ||
+        this.isActiveChapterReadOnly
+      ) {
+        return;
+      }
+      await this.persistActiveConversation({ force: true });
 
       this.addMessage("user", question);
       this.isSending = true;
@@ -541,6 +803,12 @@ export const useChatStore = defineStore("chat", {
           content: message.content,
         })),
         characterSettings: cloneValue(this.characterSettings),
+        chatContext: {
+          mode: this.activeRelationship?.mode || "free",
+          goal: this.activeRelationship?.goal || "",
+          chapterNumber: this.activeConversation?.chapterNumber || 1,
+          chapterTitle: this.activeConversation?.title || "",
+        },
         temperature: parseFloat(this.modelParams.temperature.toFixed(2)),
         top_p: parseFloat(this.modelParams.top_p.toFixed(2)),
       };
@@ -583,10 +851,7 @@ export const useChatStore = defineStore("chat", {
           },
         });
       } catch (error) {
-        let errorMessage = "网络似乎出了点问题，请稍后再试。";
-        if (error.message?.includes("timeout")) {
-          errorMessage = "回复超时了，请重试。";
-        }
+        const errorMessage = error.message || "网络似乎出了点问题，请稍后再试。";
         this.conversationHistory[placeholderIndex] = {
           ...this.conversationHistory[placeholderIndex],
           content: errorMessage,

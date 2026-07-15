@@ -2,6 +2,9 @@
 import { useChatStore } from '../../store/chatStore'
 import { ref, computed } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import { ElMessage } from 'element-plus'
+import { readOptimizedImage } from '../../utils/imageFile'
 
 marked.setOptions({ breaks: true })
 
@@ -25,9 +28,10 @@ const formattedTime = computed(() => {
 })
 
 // 高亮搜索词
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const highlightSearch = (text) => {
   if (!props.searchQuery) return text
-  const regex = new RegExp(`(${props.searchQuery})`, 'gi')
+  const regex = new RegExp(`(${escapeRegExp(props.searchQuery)})`, 'gi')
   return text.replace(regex, '<mark class="search-highlight">$1</mark>')
 }
 
@@ -36,22 +40,26 @@ const renderedContent = computed(() => {
   if (isUser.value) return null
   let text = props.msg.content || ''
   text = highlightSearch(text)
-  return marked.parse(text)
+  return DOMPurify.sanitize(marked.parse(text))
 })
 
 // 用户消息纯文本高亮
-const userContent = computed(() => highlightSearch(props.msg.content || ''))
+const userContent = computed(() => DOMPurify.sanitize(
+  highlightSearch(props.msg.content || ''),
+  { ALLOWED_TAGS: ['mark'], ALLOWED_ATTR: ['class'] },
+))
 
 const triggerAvatarUpload = () => avatarInputRef.value.click()
-const handleAvatarChange = (e) => {
+const handleAvatarChange = async (e) => {
   const file = e.target.files[0]
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      if (isUser.value) chatStore.setUserAvatar(ev.target.result)
-      else chatStore.setBotAvatar(ev.target.result)
+  try {
+    if (file) {
+      const image = await readOptimizedImage(file, { maxDimension: 512 })
+      if (isUser.value) chatStore.setUserAvatar(image)
+      else chatStore.setBotAvatar(image)
     }
-    reader.readAsDataURL(file)
+  } catch (error) {
+    ElMessage.error(error.message)
   }
   e.target.value = ''
 }
@@ -68,22 +76,41 @@ const avatarSrc = computed(() => {
     
     <!-- 头像 -->
     <div class="avatar-col">
-      <el-avatar :src="avatarSrc" :size="42" class="message-avatar" @click="!isUser && triggerAvatarUpload()"/>
-      <input v-if="!isUser" type="file" ref="avatarInputRef" accept="image/*" style="display: none;" @change="handleAvatarChange">
+      <button
+        v-if="!isUser && !chatStore.isActiveChapterReadOnly"
+        type="button"
+        class="avatar-button"
+        aria-label="更换角色头像"
+        @click="triggerAvatarUpload"
+      >
+        <el-avatar
+          :src="avatarSrc"
+          :size="42"
+          class="message-avatar clickable"
+        />
+      </button>
+      <el-avatar
+        v-else
+        :src="avatarSrc"
+        :size="42"
+        class="message-avatar"
+      />
+      <input v-if="!isUser && !chatStore.isActiveChapterReadOnly" ref="avatarInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleAvatarChange">
     </div>
 
     <!-- 消息区域 -->
     <div class="message-col">
       <div class="message-header" :class="isUser ? 'align-end' : 'align-start'">
         <span class="message-time">{{ formattedTime }}</span>
-        <span 
+        <button
+          type="button"
           class="bookmark-icon" 
           :class="{ active: msg.bookmarked }"
           @click="emit('toggle-bookmark')"
-          title="标记书签"
+          :aria-label="msg.bookmarked ? '取消书签' : '添加书签'"
         >
           {{ msg.bookmarked ? '⭐' : '☆' }}
-        </span>
+        </button>
       </div>
 
       <div class="bubble-wrapper">
@@ -125,12 +152,23 @@ const avatarSrc = computed(() => {
   border: 2px solid var(--border-glass-strong);
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  cursor: pointer;
 }
-.message-avatar:hover {
+.message-avatar.clickable { cursor: pointer; }
+.message-avatar.clickable:hover {
   transform: scale(1.08);
   box-shadow: var(--shadow-md);
 }
+
+.avatar-button,
+.bookmark-icon {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.avatar-button { display: block; border-radius: 50%; }
 
 .message-col {
   display: flex;

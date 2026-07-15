@@ -1,5 +1,7 @@
 <script setup>
 import { ref, watch, nextTick, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useChatStore } from '../store/chatStore'
 import MessageBubble from './chat/MessageBubble.vue'
 import MessageInput from './chat/MessageInput.vue'
@@ -38,8 +40,32 @@ const onSearchInput = (e) => {
   chatStore.setSearch(e.target.value)
 }
 
-const toggleBookmark = (msgIndex) => {
-  chatStore.toggleBookmark(msgIndex)
+const toggleBookmark = (message) => {
+  const originalIndex = chatStore.conversationHistory.indexOf(message)
+  if (originalIndex >= 0) chatStore.toggleBookmark(originalIndex)
+}
+
+const forkFromReadonly = async () => {
+  const relationship = chatStore.activeRelationship
+  if (!relationship || !chatStore.activeConversationId) return
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '分支故事会继承这里的关系、记忆与最终目标，之后独立发展。',
+      '从这里创建分支故事',
+      {
+        inputValue: `${relationship.characterName} · 分支故事`,
+        inputPattern: /\S+/,
+        inputErrorMessage: '故事名称不能为空',
+        confirmButtonText: '创建分支',
+        cancelButtonText: '取消',
+      },
+    )
+    await chatStore.forkFromConversation(chatStore.activeConversationId, value.trim())
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || '创建分支失败')
+    }
+  }
 }
 </script>
 
@@ -53,7 +79,7 @@ const toggleBookmark = (msgIndex) => {
           :model-value="chatStore.searchQuery"
           @input="chatStore.setSearch"
           placeholder="搜索聊天记录..."
-          prefix-icon="Search"
+          :prefix-icon="Search"
           clearable
         />
         <el-button @click="chatStore.toggleSearch" plain style="margin-left: 10px;">取消</el-button>
@@ -70,6 +96,34 @@ const toggleBookmark = (msgIndex) => {
       </div>
     </Transition>
 
+    <div
+      v-if="chatStore.activeRelationship"
+      class="mode-context"
+      :class="chatStore.isStoryMode ? 'story' : 'free'"
+    >
+      <span class="mode-context-badge">
+        {{ chatStore.isStoryMode ? '🎯 故事模式' : '☁️ 自由模式' }}
+      </span>
+      <span class="mode-context-copy">
+        <template v-if="chatStore.isStoryMode">
+          最终目标：{{ chatStore.activeRelationship.goal || '尚未设置' }}
+        </template>
+        <template v-else>没有主线和章节，想聊什么都可以</template>
+      </span>
+    </div>
+
+    <div v-if="chatStore.isActiveChapterReadOnly" class="readonly-notice">
+      <span>这是过去的章节，只能查看。</span>
+      <el-button
+        size="small"
+        type="primary"
+        plain
+        @click="forkFromReadonly"
+      >
+        从这里创建分支故事
+      </el-button>
+    </div>
+
     <!-- 聊天消息区域 -->
     <div
       ref="chatBoxRef"
@@ -77,6 +131,11 @@ const toggleBookmark = (msgIndex) => {
       :style="chatStore.chatBackground ? { backgroundImage: `url(${chatStore.chatBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
     >
       <div class="message-stream">
+        <div v-if="!chatStore.activeConversationId" class="empty-chat-state">
+          <span class="empty-chat-icon">💬</span>
+          <strong>选择一种模式开始聊天</strong>
+          <span>在左侧新建“自由模式”或“故事模式”存档。</span>
+        </div>
         <TransitionGroup name="chat-list">
           <template v-for="(msg, index) in displayMessages" :key="msg.timestamp + index">
             <MessageBubble
@@ -84,7 +143,7 @@ const toggleBookmark = (msgIndex) => {
               :msg="msg"
               :index="index"
               :search-query="chatStore.searchQuery"
-              @toggle-bookmark="toggleBookmark(index)"
+              @toggle-bookmark="toggleBookmark(msg)"
             />
           </template>
         </TransitionGroup>
@@ -157,6 +216,44 @@ const toggleBookmark = (msgIndex) => {
   transform: translateY(-20px);
 }
 
+.mode-context,
+.readonly-notice {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-glass);
+  background: color-mix(in srgb, var(--primary) 7%, var(--bg-glass));
+  z-index: 4;
+}
+
+.mode-context.story {
+  background: color-mix(in srgb, #8b5cf6 8%, var(--bg-glass));
+}
+
+.mode-context-badge {
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mode-context-copy {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readonly-notice {
+  color: var(--text-secondary);
+  font-size: 12px;
+  background: color-mix(in srgb, #94a3b8 10%, var(--bg-glass));
+}
+
 /* 状态变化提示 */
 .state-notice {
   position: absolute;
@@ -206,6 +303,32 @@ const toggleBookmark = (msgIndex) => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.empty-chat-state {
+  min-height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty-chat-icon {
+  margin-bottom: 10px;
+  font-size: 30px;
+}
+
+.empty-chat-state strong {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.empty-chat-state span:last-child {
+  margin-top: 5px;
+  font-size: 12px;
 }
 
 /* 对方正在输入 */

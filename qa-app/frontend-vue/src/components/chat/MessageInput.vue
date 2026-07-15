@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import { useChatStore } from '../../store/chatStore'
-import { InfoFilled } from '@element-plus/icons-vue'
-import EmojiPicker from './EmojiPicker.vue'
+import { InfoFilled, Setting } from '@element-plus/icons-vue'
+const EmojiPicker = defineAsyncComponent(() => import('./EmojiPicker.vue'))
 
 const chatStore = useChatStore()
 const chatInput = ref('')
@@ -10,8 +10,15 @@ const textareaRef = ref(null)
 const showEmojiPicker = ref(false)
 
 const hasText = computed(() => chatInput.value.trim().length > 0)
-const canSend = computed(() => hasText.value && !chatStore.isSending)
+const canSend = computed(
+  () => hasText.value &&
+    !chatStore.isSending &&
+    Boolean(chatStore.activeConversationId) &&
+    !chatStore.isActiveChapterReadOnly,
+)
 const inputPlaceholder = computed(() => {
+  if (!chatStore.activeConversationId) return '请先从左侧选择聊天模式…'
+  if (chatStore.isActiveChapterReadOnly) return '过去章节为只读，可从这里创建分支故事'
   const name = chatStore.characterSettings.basicInfo.name
   return name ? `对${name}说点什么…` : '输入消息…'
 })
@@ -81,7 +88,7 @@ const insertEmoji = (emoji) => {
       popper-class="parameter-popover"
     >
       <template #reference>
-        <el-button :icon="'Setting'" circle class="settings-btn" />
+        <el-button :icon="Setting" circle class="settings-btn" aria-label="模型参数" />
       </template>
       <div style="padding: 10px;">
         <!-- Temperature Slider -->
@@ -136,7 +143,7 @@ const insertEmoji = (emoji) => {
         aria-label="聊天消息"
         @keydown.enter="handleEnter"
         class="custom-textarea"
-        :disabled="chatStore.isSending"
+        :disabled="chatStore.isSending || !chatStore.activeConversationId || chatStore.isActiveChapterReadOnly"
       />
     </div>
 

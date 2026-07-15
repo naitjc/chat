@@ -58,13 +58,25 @@ ${JSON.stringify(currentState)}
 
 function updateStateObject(oldState, impact) {
     const newState = { ...oldState };
-    newState.affection = Math.min(100, Math.max(0, (newState.affection || 0) + (impact.affection || 0)));
-    newState.mood      = Math.min(50,  Math.max(-50, (newState.mood    || 0) + (impact.mood      || 0)));
+    const affectionDelta = Math.min(10, Math.max(-10, Number(impact.affection) || 0));
+    const moodDelta = Math.min(15, Math.max(-15, Number(impact.mood) || 0));
+    newState.affection = Math.min(100, Math.max(0, (Number(newState.affection) || 0) + affectionDelta));
+    newState.mood = Math.min(50, Math.max(-50, (Number(newState.mood) || 0) + moodDelta));
 
     if      (newState.affection > 90) newState.relationshipStage = "life_partner";
     else if (newState.affection > 80) newState.relationshipStage = "intimate";
     else if (newState.affection > 60) newState.relationshipStage = "close";
-    else                              newState.relationshipStage = "familiar";
+    else if (newState.affection >= 25) newState.relationshipStage = "familiar";
+    else                               newState.relationshipStage = "stranger";
+
+    const distanceByStage = {
+        stranger: "distant",
+        familiar: "normal",
+        close: "close",
+        intimate: "intimate",
+        life_partner: "inseparable",
+    };
+    newState.distance = distanceByStage[newState.relationshipStage];
 
     return newState;
 }

@@ -1,4 +1,4 @@
-function buildSystemPrompt(settings) {
+function buildSystemPrompt(settings, chatContext = {}) {
     // 如果没有指定角色名称，则作为普通助手机制
     if (!settings || !settings.basicInfo || !settings.basicInfo.name) {
         return "你是一个知识渊博、友好且专业的智能助手。请针对用户的问题给出准确、有条理且有帮助的回答。";
@@ -15,6 +15,24 @@ function buildSystemPrompt(settings) {
     } = settings;
 
     let systemPrompt = `你是一个顶级的角色扮演专家。请你完全沉浸在以下设定的角色（${basicInfo.name}）中，不得跳出角色，不得提及自己是 AI 或语言模型。你的所有回复都必须严格符合角色的性格、背景、语言习惯和行为准则。\n`;
+
+    if (chatContext.mode === 'story') {
+        const goal = String(chatContext.goal || '').trim();
+        const chapterNumber = Number(chatContext.chapterNumber || 1);
+        const chapterTitle = String(chatContext.chapterTitle || `第 ${chapterNumber} 章`).trim();
+        systemPrompt += `\n### 当前模式：故事模式
+- **最终目标**: ${goal || '尚未设置'}
+- **当前章节**: 第 ${chapterNumber} 章「${chapterTitle}」
+
+**推进边界**:
+1. 用户决定主角的行动、故事推进速度和何时进入下一章。
+2. 你负责依据用户已经做出的行动，自然呈现场景、角色反应与合理后果。
+3. 不得替用户做关键决定，不得擅自跳章、推进到结局或宣布最终目标已经完成。
+4. 最终目标用于保持长期方向，不要求每次回复都强行推进。\n`;
+    } else {
+        systemPrompt += `\n### 当前模式：自由模式
+这里没有主线、章节或预设结局。顺着用户当下的话题自然互动，不要自行设定任务、制造剧情目标或宣布进入新章节。\n`;
+    }
 
     // 动态注入当前状态
     if (relationshipState && relationshipState.affection !== undefined) {

@@ -2,7 +2,7 @@ require("dotenv").config();
 const path = require("path");
 
 const config = {
-  port: process.env.PORT || 8888,
+  port: Number(process.env.PORT) || 8888,
   apiKey: process.env.API_KEY,
   model: process.env.MODEL || "GLM-5",
   apiURL: process.env.API_BASE_URL || "https://api.edgefn.net/v1",
@@ -17,8 +17,15 @@ const config = {
 
   validate() {
     if (!this.apiKey) throw new Error("API_KEY 未配置，请在 .env 文件中设置。");
-    if (!this.apiURL.startsWith("http"))
-      throw new Error("API_BASE_URL 格式错误，应以 http:// 或 https:// 开头。");
+    let protocol;
+    try {
+      protocol = new URL(this.apiURL).protocol;
+    } catch {
+      throw new Error("API_BASE_URL 不是有效 URL。");
+    }
+    if (protocol !== "http:" && protocol !== "https:") {
+      throw new Error("API_BASE_URL 仅支持 http:// 或 https://。");
+    }
   },
 };
 

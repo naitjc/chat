@@ -1,27 +1,32 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useChatStore } from '../store/chatStore'
 import StatusPanel from './chat/StatusPanel.vue'
-import { DocumentCopy } from '@element-plus/icons-vue'
+import { DocumentCopy, User } from '@element-plus/icons-vue'
+import { readOptimizedImage } from '../utils/imageFile'
 
 const chatStore = useChatStore()
 
 const settings = computed(() => chatStore.characterSettings)
 
 const hasCharacter = computed(() => !!settings.value?.basicInfo?.name)
+const isReadOnly = computed(() => chatStore.isActiveChapterReadOnly)
+const avatarInputRef = ref(null)
 
 // 头像上传
 const triggerAvatarUpload = () => {
-  const input = document.getElementById('avatar-upload-input')
-  if (input) input.click()
+  avatarInputRef.value?.click()
 }
 
-const handleAvatarChange = (e) => {
+const handleAvatarChange = async (e) => {
   const file = e.target.files[0]
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (ev) => chatStore.setBotAvatar(ev.target.result)
-    reader.readAsDataURL(file)
+  try {
+    if (file) {
+      chatStore.setBotAvatar(await readOptimizedImage(file, { maxDimension: 512 }))
+    }
+  } catch (error) {
+    ElMessage.error(error.message)
   }
   e.target.value = ''
 }
@@ -67,13 +72,20 @@ const copyCharacterSettings = () => {
       
       <template v-else>
         <!-- 头像区 -->
-        <div class="avatar-section" @click="triggerAvatarUpload">
+        <button
+          type="button"
+          class="avatar-section"
+          :class="{ 'no-cursor': isReadOnly }"
+          :disabled="isReadOnly"
+          aria-label="更换角色头像"
+          @click="triggerAvatarUpload"
+        >
           <el-avatar :src="settings.avatar" :size="72" class="char-avatar" />
           <div class="avatar-overlay">
             <span>更换头像</span>
           </div>
-          <input id="avatar-upload-input" type="file" accept="image/*" style="display:none" @change="handleAvatarChange" />
-        </div>
+          <input ref="avatarInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleAvatarChange" />
+        </button>
 
         <!-- 当前角色名 -->
         <div class="char-name-display">{{ settings.basicInfo.name }}</div>
@@ -88,18 +100,18 @@ const copyCharacterSettings = () => {
             <template #title><span class="collapse-title">📋 基本信息</span></template>
             <div class="form-row">
               <el-form-item label="角色名称" style="flex:2">
-                <el-input v-model="settings.basicInfo.name" placeholder="顾时夜" />
+                <el-input v-model="settings.basicInfo.name" placeholder="顾时夜" :disabled="isReadOnly" />
               </el-form-item>
               <el-form-item label="年龄" style="flex:1">
-                <el-input v-model="settings.basicInfo.age" placeholder="31" />
+                <el-input v-model="settings.basicInfo.age" placeholder="31" :disabled="isReadOnly" />
               </el-form-item>
             </div>
             <div class="form-row">
               <el-form-item label="性别" style="flex:1">
-                <el-input v-model="settings.basicInfo.gender" placeholder="男" />
+                <el-input v-model="settings.basicInfo.gender" placeholder="男" :disabled="isReadOnly" />
               </el-form-item>
               <el-form-item label="称呼用户" style="flex:1.5">
-                <el-input v-model="settings.basicInfo.userNickname" placeholder="夫人" />
+                <el-input v-model="settings.basicInfo.userNickname" placeholder="夫人" :disabled="isReadOnly" />
               </el-form-item>
             </div>
           </el-collapse-item>
@@ -111,11 +123,12 @@ const copyCharacterSettings = () => {
               <el-input
                 :model-value="arrayJoin(settings.corePersonality)"
                 @update:model-value="val => settings.corePersonality = arraySplit(val)"
+                :disabled="isReadOnly"
                 type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"
               />
             </el-form-item>
             <el-form-item label="语调描述">
-              <el-input v-model="settings.speechStyle.tone" />
+              <el-input v-model="settings.speechStyle.tone" :disabled="isReadOnly" />
             </el-form-item>
           </el-collapse-item>
 
@@ -123,12 +136,13 @@ const copyCharacterSettings = () => {
           <el-collapse-item name="background">
             <template #title><span class="collapse-title">📖 背景设定</span></template>
             <el-form-item label="身份标签">
-              <el-input v-model="settings.background.identity" />
+              <el-input v-model="settings.background.identity" :disabled="isReadOnly" />
             </el-form-item>
             <el-form-item label="行为准则 (分号分隔)">
               <el-input
                 :model-value="arrayJoin(settings.behaviorRules)"
                 @update:model-value="val => settings.behaviorRules = arraySplit(val)"
+                :disabled="isReadOnly"
                 type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"
               />
             </el-form-item>
@@ -198,8 +212,12 @@ const copyCharacterSettings = () => {
   margin: 0 auto 10px;
   cursor: pointer;
   border-radius: 50%;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 .avatar-section.no-cursor { cursor: default; }
+.avatar-section.no-cursor .avatar-overlay { display: none; }
 
 .char-avatar {
   width: 72px !important;

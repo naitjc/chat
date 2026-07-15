@@ -1,4 +1,5 @@
 const conversationStore = require("../services/conversationStore");
+const { summarizeChapter } = require("../services/historyManager");
 
 function handleError(error, res, next) {
   if (error.code?.startsWith("SQLITE_CONSTRAINT")) {
@@ -12,7 +13,40 @@ function handleError(error, res, next) {
 
 function list(req, res, next) {
   try {
-    res.json({ conversations: conversationStore.listConversations() });
+    const conversations = conversationStore
+      .listRelationships()
+      .flatMap((relationship) => relationship.chapters)
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    res.json({ conversations });
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
+function listRelationships(req, res, next) {
+  try {
+    res.json({ relationships: conversationStore.listRelationships() });
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
+function getRelationship(req, res, next) {
+  try {
+    const relationship = conversationStore.getRelationship(req.params.id);
+    if (!relationship) {
+      return res.status(404).json({ error: { message: "存档不存在" } });
+    }
+    res.json({ relationship });
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
+function createRelationship(req, res, next) {
+  try {
+    const result = conversationStore.createRelationship(req.body || {});
+    res.status(201).json(result);
   } catch (error) {
     handleError(error, res, next);
   }
@@ -69,6 +103,91 @@ function rename(req, res, next) {
   }
 }
 
+function renameRelationship(req, res, next) {
+  try {
+    const relationship = conversationStore.renameRelationship(
+      req.params.id,
+      req.body?.title,
+    );
+    if (!relationship) {
+      return res.status(404).json({ error: { message: "存档不存在" } });
+    }
+    res.json({ relationship });
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
+function updateRelationshipSettings(req, res, next) {
+  try {
+    const relationship = conversationStore.updateRelationshipSettings(
+      req.params.id,
+      req.body || {},
+    );
+    if (!relationship) {
+      return res.status(404).json({ error: { message: "存档不存在" } });
+    }
+    res.json({ relationship });
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
+async function chapterSummary(conversation, suppliedSummary) {
+  const supplied = String(suppliedSummary || "").trim();
+  if (supplied) return supplied;
+  if (conversation.summary) return conversation.summary;
+  try {
+    return await summarizeChapter(conversation.snapshot?.apiHistory || []);
+  } catch {
+    return conversation.preview
+      ? `本章最后围绕“${conversation.preview.slice(0, 120)}”展开，完整内容保留在源章节。`
+      : "本章完整内容保留在源章节。";
+  }
+}
+
+async function createNextChapter(req, res, next) {
+  try {
+    const source = conversationStore.getConversation(
+      req.body?.sourceConversationId,
+    );
+    if (!source) {
+      return res.status(404).json({ error: { message: "源章节不存在" } });
+    }
+    if (source.relationshipId !== req.params.id) {
+      return res.status(400).json({
+        error: { message: "源章节不属于当前关系" },
+      });
+    }
+    const summary = await chapterSummary(source, req.body?.summary);
+    const result = conversationStore.createNextChapter(source.id, {
+      title: req.body?.title,
+      summary,
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
+async function fork(req, res, next) {
+  try {
+    const source = conversationStore.getConversation(req.params.id);
+    if (!source) {
+      return res.status(404).json({ error: { message: "源章节不存在" } });
+    }
+    const summary = await chapterSummary(source, req.body?.summary);
+    const result = conversationStore.forkConversation(source.id, {
+      relationshipTitle: req.body?.relationshipTitle,
+      title: req.body?.title,
+      summary,
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
 function remove(req, res, next) {
   try {
     if (!conversationStore.deleteConversation(req.params.id)) {
@@ -80,4 +199,30 @@ function remove(req, res, next) {
   }
 }
 
-module.exports = { list, get, create, update, rename, remove };
+function removeRelationship(req, res, next) {
+  try {
+    if (!conversationStore.deleteRelationship(req.params.id)) {
+      return res.status(404).json({ error: { message: "存档不存在" } });
+    }
+    res.status(204).end();
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
+module.exports = {
+  list,
+  get,
+  create,
+  update,
+  rename,
+  remove,
+  listRelationships,
+  getRelationship,
+  createRelationship,
+  renameRelationship,
+  updateRelationshipSettings,
+  removeRelationship,
+  createNextChapter,
+  fork,
+};

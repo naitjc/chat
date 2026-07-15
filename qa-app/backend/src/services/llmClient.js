@@ -74,7 +74,8 @@ async function callLLMStream(messages, options = {}, onChunk, onDone) {
         temperature = 0.5,
         thinking = false,
         timeout = 90000,
-        top_p = 0.7
+        top_p = 0.7,
+        signal,
     } = options;
 
     const apiKey = config.apiKey;
@@ -101,7 +102,8 @@ async function callLLMStream(messages, options = {}, onChunk, onDone) {
             'Accept': 'text/event-stream'
         },
         responseType: 'stream',
-        timeout
+        timeout,
+        signal,
     });
 
     let fullText = '';

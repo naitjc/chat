@@ -5,7 +5,9 @@ import { useChatStore } from '../store/chatStore';
 const canvasRef = ref(null);
 const chatStore = useChatStore();
 let animationFrameId;
+let isAnimating = false;
 const snowflakes = [];
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const numFlakes = Math.min(80, Math.max(30, (navigator.hardwareConcurrency || 4) * 8));
 
@@ -54,18 +56,30 @@ class Snowflake {
 
 const animate = () => {
   const canvas = canvasRef.value;
-  if (!canvas) return;
+  if (!canvas || !isAnimating) return;
   const ctx = canvas.getContext('2d');
-
-  if (document.visibilityState === 'hidden') {
-    animationFrameId = requestAnimationFrame(animate);
-    return;
-  }
+  if (!ctx) return;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const color = snowColor.value;
   snowflakes.forEach(f => { f.update(); f.draw(ctx, color); });
   animationFrameId = requestAnimationFrame(animate);
+};
+
+const startAnimation = () => {
+  if (isAnimating || document.visibilityState === 'hidden' || prefersReducedMotion.matches) return;
+  isAnimating = true;
+  animate();
+};
+
+const stopAnimation = () => {
+  isAnimating = false;
+  cancelAnimationFrame(animationFrameId);
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') stopAnimation();
+  else startAnimation();
 };
 
 const handleResize = () => {
@@ -80,14 +94,16 @@ onMounted(() => {
     canvasRef.value.width = window.innerWidth;
     canvasRef.value.height = window.innerHeight;
     for (let i = 0; i < numFlakes; i++) snowflakes.push(new Snowflake(canvasRef.value));
-    animate();
+    startAnimation();
     window.addEventListener('resize', handleResize);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
   }
 });
 
 onUnmounted(() => {
-  cancelAnimationFrame(animationFrameId);
+  stopAnimation();
   window.removeEventListener('resize', handleResize);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
   snowflakes.length = 0;
 });
 </script>

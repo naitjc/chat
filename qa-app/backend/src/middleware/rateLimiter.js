@@ -26,11 +26,13 @@ function rateLimiter(req, res, next) {
     record.count++;
 
     if (record.count > MAX_REQUESTS) {
+        const retryAfter = Math.max(1, Math.ceil((record.resetTime - now) / 1000));
+        res.setHeader('Retry-After', String(retryAfter));
         return res.status(429).json({
             error: {
                 message: '请求过于频繁，请稍后再试。',
                 code: 'RATE_LIMIT_EXCEEDED',
-                retryAfter: Math.ceil((record.resetTime - now) / 1000)
+                retryAfter
             }
         });
     }
@@ -39,11 +41,12 @@ function rateLimiter(req, res, next) {
 }
 
 // 每 5 分钟清理过期记录，防止内存泄漏
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
     const now = Date.now();
     for (const [ip, record] of requestMap.entries()) {
         if (now > record.resetTime) requestMap.delete(ip);
     }
 }, 5 * 60 * 1000);
+cleanupTimer.unref();
 
 module.exports = rateLimiter;

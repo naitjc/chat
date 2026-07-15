@@ -3,13 +3,31 @@ const router = express.Router();
 const chatController = require("../controllers/chatController");
 const conversationController = require("../controllers/conversationController");
 
+router.get("/health", (req, res) => res.json({ status: "ok" }));
 router.post("/qa/stream", chatController.handleChatStream);
 router.put("/model", chatController.updateModel);
+router.get("/relationships", conversationController.listRelationships);
+router.post("/relationships", conversationController.createRelationship);
+router.get("/relationships/:id", conversationController.getRelationship);
+router.patch(
+  "/relationships/:id/title",
+  conversationController.renameRelationship,
+);
+router.patch(
+  "/relationships/:id/settings",
+  conversationController.updateRelationshipSettings,
+);
+router.delete("/relationships/:id", conversationController.removeRelationship);
+router.post(
+  "/relationships/:id/chapters",
+  conversationController.createNextChapter,
+);
 router.get("/conversations", conversationController.list);
 router.post("/conversations", conversationController.create);
 router.get("/conversations/:id", conversationController.get);
 router.put("/conversations/:id", conversationController.update);
 router.patch("/conversations/:id/title", conversationController.rename);
+router.post("/conversations/:id/fork", conversationController.fork);
 router.delete("/conversations/:id", conversationController.remove);
 
 module.exports = router;

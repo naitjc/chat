@@ -1,10 +1,10 @@
 <script setup>
 import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
 
 const emit = defineEmits(['save', 'close'])
 
 const step = ref(1)
-const isGenerating = ref(false)
 
 const form = reactive({
   basicInfo: { name: '', age: '', gender: '' },
@@ -14,12 +14,12 @@ const form = reactive({
 })
 
 const generateCharacter = () => {
-  // 简易的角色设定生成逻辑 (模拟)
-  // 如果在生产环境，可发请求给 LLM，将 name, personalityStr 扩写为完整的 JSON
-  isGenerating.value = true
-  setTimeout(() => {
-    isGenerating.value = false
-    const newChar = {
+  if (!form.basicInfo.name.trim()) {
+    ElMessage.warning('请先填写角色姓名')
+    step.value = 1
+    return
+  }
+  const newChar = {
       id: 'custom_' + Date.now(),
       basicInfo: {
         name: form.basicInfo.name || '未知角色',
@@ -44,17 +44,24 @@ const generateCharacter = () => {
       },
       memory: { longTerm: [], relationshipMemory: [] },
       avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${form.basicInfo.name || 'Robot'}`
-    }
-    emit('save', newChar)
-  }, 1000)
+  }
+  emit('save', newChar)
+}
+
+const nextStep = () => {
+  if (step.value === 1 && !form.basicInfo.name.trim()) {
+    ElMessage.warning('请先填写角色姓名')
+    return
+  }
+  step.value += 1
 }
 </script>
 
 <template>
   <el-dialog
-    model-value="true"
+    :model-value="true"
     @close="emit('close')"
-    width="500px"
+    width="min(500px, calc(100vw - 24px))"
     class="wizard-dialog"
     destroy-on-close
   >
@@ -114,10 +121,11 @@ const generateCharacter = () => {
       </div>
 
       <div class="wizard-footer">
+        <el-button @click="emit('close')">取消</el-button>
         <el-button v-if="step > 1" @click="step--" plain>上一步</el-button>
-        <el-button v-if="step < 3" type="primary" @click="step++">下一步</el-button>
-        <el-button v-if="step === 3" type="primary" :loading="isGenerating" @click="generateCharacter">
-          生成角色
+        <el-button v-if="step < 3" type="primary" @click="nextStep">下一步</el-button>
+        <el-button v-if="step === 3" type="primary" @click="generateCharacter">
+          创建角色
         </el-button>
       </div>
     </div>

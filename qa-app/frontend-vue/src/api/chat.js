@@ -1,13 +1,25 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8888";
+const REQUEST_TIMEOUT_MS = 15000;
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: options.signal || controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("请求超时，请稍后重试");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -20,6 +32,68 @@ async function request(path, options = {}) {
 export async function listConversations() {
   const data = await request("/conversations");
   return data.conversations;
+}
+
+export async function listRelationships() {
+  const data = await request("/relationships");
+  return data.relationships;
+}
+
+export async function getRelationship(id) {
+  const data = await request(`/relationships/${encodeURIComponent(id)}`);
+  return data.relationship;
+}
+
+export async function createRelationship(payload) {
+  return request("/relationships", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function renameRelationship(id, title) {
+  const data = await request(
+    `/relationships/${encodeURIComponent(id)}/title`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    },
+  );
+  return data.relationship;
+}
+
+export async function updateRelationshipSettings(id, payload) {
+  const data = await request(
+    `/relationships/${encodeURIComponent(id)}/settings`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+  return data.relationship;
+}
+
+export async function deleteRelationship(id) {
+  await request(`/relationships/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function createNextChapter(relationshipId, payload) {
+  return request(
+    `/relationships/${encodeURIComponent(relationshipId)}/chapters`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function forkConversation(id, payload = {}) {
+  return request(`/conversations/${encodeURIComponent(id)}/fork`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getConversation(id) {
@@ -81,6 +155,8 @@ export async function sendMessageStream(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let eventBuffer = "";
+  let completed = false;
+  let streamError = "";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -104,11 +180,20 @@ export async function sendMessageStream(
         const data = JSON.parse(dataLine);
         if (eventType === "chunk" && onChunk) onChunk(data.text);
         if (eventType === "state" && onState) onState(data);
-        if (eventType === "done" && onDone) onDone(data);
-        if (eventType === "error" && onError) onError(data.message);
+        if (eventType === "done") {
+          completed = true;
+          if (onDone) onDone(data);
+        }
+        if (eventType === "error") {
+          streamError = data.message || "生成回复失败";
+          if (onError) onError(streamError);
+        }
       } catch {
         /* 忽略解析失败 */
       }
     }
   }
+
+  if (streamError) throw new Error(streamError);
+  if (!completed) throw new Error("连接提前结束，请重试");
 }

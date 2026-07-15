@@ -126,7 +126,7 @@ watch(
       class="settings-drawer"
     >
       <div class="mobile-drawer-header">
-        <span>角色与关系</span>
+        <span>角色设置</span>
         <el-button
           :icon="Close"
           circle

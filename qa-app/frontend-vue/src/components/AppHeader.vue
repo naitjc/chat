@@ -1,12 +1,11 @@
 <script setup>
-import { ref, inject, computed, onMounted, watch } from 'vue'
+import { ref, inject, computed, defineAsyncComponent, onMounted, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useChatStore } from '../store/chatStore'
-import CharacterWizard from './CharacterWizard.vue'
 import {
   Brush,
   ChatLineRound,
   ChatDotRound,
-  Delete,
   Download,
   EditPen,
   MoreFilled,
@@ -14,6 +13,9 @@ import {
   Search,
   Setting,
 } from '@element-plus/icons-vue'
+import { readOptimizedImage } from '../utils/imageFile'
+
+const CharacterWizard = defineAsyncComponent(() => import('./CharacterWizard.vue'))
 
 defineProps({
   isMobile: { type: Boolean, default: false },
@@ -55,8 +57,14 @@ watch(
 onMounted(async () => {
   try {
     const response = await fetch('/characters.json')
-    if (response.ok) characters.value = await response.json()
-  } catch (e) { console.error('加载角色失败:', e) }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const data = await response.json()
+    if (!Array.isArray(data)) throw new Error('角色数据格式错误')
+    characters.value = data
+  } catch (error) {
+    console.error('加载角色失败:', error)
+    ElMessage.error('预设角色加载失败，请刷新页面重试')
+  }
 })
 
 const onCharacterSelect = () => {
@@ -69,18 +77,20 @@ const triggerBackgroundUpload = () => {
   showMoreMenu.value = false
   backgroundInputRef.value?.click()
 }
-const handleBackgroundChange = (e) => {
+const handleBackgroundChange = async (e) => {
   const file = e.target.files[0]
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (ev) => emit('update-background', ev.target.result)
-    reader.readAsDataURL(file)
+  try {
+    if (file) {
+      emit('update-background', await readOptimizedImage(file, { maxDimension: 1920 }))
+    }
+  } catch (error) {
+    ElMessage.error(error.message)
   }
   e.target.value = ''
 }
 
-const clearHistory = () => {
-  chatStore.clearHistory()
+const startNewChapter = () => {
+  chatStore.createNextChapter()
   showMoreMenu.value = false
 }
 
@@ -136,7 +146,6 @@ const displayName = computed(() => {
         @change="onCharacterSelect"
         class="character-select"
       >
-        <el-option value="" label="— 自定义 —" />
         <el-option-group label="预设角色">
           <el-option v-for="c in characters" :key="c.id" :value="c.id" :label="c.basicInfo.name" />
         </el-option-group>
@@ -162,12 +171,12 @@ const displayName = computed(() => {
     </div>
 
     <div class="header-right">
-      <el-tooltip :content="conversationsOpen ? '收起会话列表' : '展开会话列表'" placement="bottom">
+      <el-tooltip :content="conversationsOpen ? '收起聊天存档' : '展开聊天存档'" placement="bottom">
         <el-button
           :icon="ChatLineRound"
           class="icon-btn"
           :class="{ active: conversationsOpen }"
-          aria-label="会话列表"
+          aria-label="聊天存档"
           @click="emit('toggle-conversations')"
         />
       </el-tooltip>
@@ -223,7 +232,6 @@ const displayName = computed(() => {
               @change="onCharacterSelect"
               class="menu-character-select"
             >
-              <el-option value="" label="— 自定义 —" />
               <el-option-group label="预设角色">
                 <el-option v-for="c in characters" :key="c.id" :value="c.id" :label="c.basicInfo.name" />
               </el-option-group>
@@ -274,15 +282,18 @@ const displayName = computed(() => {
                 <span>导出对话</span>
               </el-button>
               <el-popconfirm
-                title="确定清空所有对话吗？"
-                confirm-button-text="清空"
+                title="结束当前章节，并在同一关系中开启新章节？"
+                confirm-button-text="开启"
                 cancel-button-text="取消"
-                @confirm="clearHistory"
+                @confirm="startNewChapter"
               >
                 <template #reference>
-                  <el-button class="menu-action danger-action">
-                    <el-icon><Delete /></el-icon>
-                    <span>清空对话</span>
+                  <el-button
+                    class="menu-action"
+                    :disabled="!chatStore.activeConversationId || chatStore.isActiveChapterReadOnly"
+                  >
+                    <el-icon><ChatDotRound /></el-icon>
+                    <span>开启新章节</span>
                   </el-button>
                 </template>
               </el-popconfirm>
@@ -291,7 +302,7 @@ const displayName = computed(() => {
         </div>
       </el-popover>
 
-      <input type="file" ref="backgroundInputRef" accept="image/*" style="display:none" @change="handleBackgroundChange">
+      <input ref="backgroundInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleBackgroundChange">
     </div>
   </el-header>
 

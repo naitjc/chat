@@ -25,9 +25,18 @@ app.use('/qa', rateLimiter);
 // Use routes
 app.use('/', apiRoutes);
 
+app.use((req, res) => {
+  res.status(404).json({
+    error: {
+      message: '接口不存在',
+      code: 'NOT_FOUND',
+    },
+  });
+});
+
 // Global Error Handler
 app.use(errorHandler);
 
 const server = app.listen(config.port, () => {
   console.log(`✅ 后端服务器运行在 http://localhost:${server.address().port}`);
-});
+});
