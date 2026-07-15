@@ -1,5 +1,65 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8888";
 
+async function request(path, options = {}) {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.error?.message || `HTTP ${response.status}`);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+export async function listConversations() {
+  const data = await request("/conversations");
+  return data.conversations;
+}
+
+export async function getConversation(id) {
+  const data = await request(`/conversations/${encodeURIComponent(id)}`);
+  return data.conversation;
+}
+
+export async function createConversation(payload) {
+  const data = await request("/conversations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data.conversation;
+}
+
+export async function updateConversation(id, payload) {
+  const data = await request(`/conversations/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  return data.conversation;
+}
+
+export async function renameConversation(id, title) {
+  const data = await request(
+    `/conversations/${encodeURIComponent(id)}/title`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    },
+  );
+  return data.conversation;
+}
+
+export async function deleteConversation(id) {
+  await request(`/conversations/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
 /**
  * 流式消息发送 - SSE
  */

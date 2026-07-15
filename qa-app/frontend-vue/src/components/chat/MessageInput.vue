@@ -11,6 +11,10 @@ const showEmojiPicker = ref(false)
 
 const hasText = computed(() => chatInput.value.trim().length > 0)
 const canSend = computed(() => hasText.value && !chatStore.isSending)
+const inputPlaceholder = computed(() => {
+  const name = chatStore.characterSettings.basicInfo.name
+  return name ? `对${name}说点什么…` : '输入消息…'
+})
 
 const sendMessage = async () => {
   if (!canSend.value) return
@@ -20,7 +24,9 @@ const sendMessage = async () => {
 }
 
 const handleEnter = (event) => {
+  if (event.isComposing) return
   if (!event.shiftKey) {
+    event.preventDefault()
     sendMessage()
   }
 }
@@ -126,8 +132,9 @@ const insertEmoji = (emoji) => {
         v-model="chatInput"
         type="textarea"
         :autosize="{ minRows: 1, maxRows: 5 }"
-        placeholder="输入消息..."
-        @keydown.enter.prevent="handleEnter"
+        :placeholder="inputPlaceholder"
+        aria-label="聊天消息"
+        @keydown.enter="handleEnter"
         class="custom-textarea"
         :disabled="chatStore.isSending"
       />
@@ -220,6 +227,29 @@ const insertEmoji = (emoji) => {
 .emoji-btn-trigger:hover {
   background: white !important;
   transform: scale(1.08);
+}
+
+@media (max-width: 800px) {
+  .message-input-container {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .send-btn {
+    height: 36px;
+    padding: 0 14px;
+  }
+
+  .settings-btn,
+  .emoji-btn-trigger {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  :deep(.custom-textarea .el-textarea__inner) {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
 }
 </style>
 

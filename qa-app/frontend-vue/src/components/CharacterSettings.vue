@@ -6,19 +6,12 @@ import { DocumentCopy } from '@element-plus/icons-vue'
 
 const chatStore = useChatStore()
 
-// 判断是展示群聊中的选中角色，还是单角色模式下的角色
-const settings = computed(() => {
-  if (chatStore.isGroupMode) {
-    return chatStore.groupCharacters.find(c => c.id === chatStore.activeGroupCharId) || chatStore.characterSettings
-  }
-  return chatStore.characterSettings
-})
+const settings = computed(() => chatStore.characterSettings)
 
 const hasCharacter = computed(() => !!settings.value?.basicInfo?.name)
 
 // 头像上传
 const triggerAvatarUpload = () => {
-  if (chatStore.isGroupMode) return // 暂不支持群聊内单独改预设头像
   const input = document.getElementById('avatar-upload-input')
   if (input) input.click()
 }
@@ -45,12 +38,6 @@ const copyCharacterSettings = () => {
     .catch(() => ElMessage.error('复制失败，请手动操作'))
 }
 
-const updateSetting = (keyPath, val) => {
-  if (chatStore.isGroupMode) {
-    // 若要支持群聊中修改设定，需添加相应 action。这里保持简单，仅双向绑定到对象本身
-    // 但 Vue 响应式会直接更新该对象，因为它是从 groupCharacters 引用的。
-  }
-}
 </script>
 
 <template>
@@ -59,13 +46,13 @@ const updateSetting = (keyPath, val) => {
       <div class="card-header">
         <div style="display:flex; align-items:center;">
           <el-icon :size="18" style="margin-right: 6px;"><User /></el-icon>
-          <span>{{ chatStore.isGroupMode ? '群聊成员设定' : '角色设定' }}</span>
+          <span>角色设定</span>
         </div>
         
         <!-- 复制角色设定 JSON 方便分享 -->
         <el-tooltip content="复制角色配置 JSON" placement="top">
           <el-button 
-            v-if="hasCharacter && !chatStore.isGroupMode" 
+            v-if="hasCharacter"
             circle size="small" 
             :icon="DocumentCopy" 
             @click="copyCharacterSettings"
@@ -79,40 +66,19 @@ const updateSetting = (keyPath, val) => {
       <div v-if="!hasCharacter" class="empty-hint">请选择或创建一个角色</div>
       
       <template v-else>
-        <!-- 群聊成员切换面板 -->
-        <div v-if="chatStore.isGroupMode && chatStore.groupCharacters.length > 1" class="group-switcher">
-          <el-select 
-            :model-value="chatStore.activeGroupCharId"
-            @update:model-value="chatStore.setActiveGroupChar"
-            size="small"
-            class="group-select"
-          >
-            <el-option 
-              v-for="c in chatStore.groupCharacters" 
-              :key="c.id" 
-              :value="c.id" 
-              :label="c.basicInfo.name" 
-            />
-          </el-select>
-        </div>
-
         <!-- 头像区 -->
-        <div class="avatar-section" @click="triggerAvatarUpload" :class="{ 'no-cursor': chatStore.isGroupMode }">
+        <div class="avatar-section" @click="triggerAvatarUpload">
           <el-avatar :src="settings.avatar" :size="72" class="char-avatar" />
-          <div v-if="!chatStore.isGroupMode" class="avatar-overlay">
+          <div class="avatar-overlay">
             <span>更换头像</span>
           </div>
-          <input v-if="!chatStore.isGroupMode" id="avatar-upload-input" type="file" accept="image/*" style="display:none" @change="handleAvatarChange" />
+          <input id="avatar-upload-input" type="file" accept="image/*" style="display:none" @change="handleAvatarChange" />
         </div>
 
         <!-- 当前角色名 -->
         <div class="char-name-display">{{ settings.basicInfo.name }}</div>
 
-        <!-- 关系状态面板 -->
-        <!-- 群聊模式下传递具体的状态 -->
-        <StatusPanel 
-          :override-state="chatStore.isGroupMode ? chatStore.groupStates[chatStore.activeGroupCharId] : null" 
-        />
+        <StatusPanel />
 
         <!-- 折叠面板 -->
         <el-collapse class="settings-collapse">
@@ -122,18 +88,18 @@ const updateSetting = (keyPath, val) => {
             <template #title><span class="collapse-title">📋 基本信息</span></template>
             <div class="form-row">
               <el-form-item label="角色名称" style="flex:2">
-                <el-input v-model="settings.basicInfo.name" placeholder="顾时夜" :disabled="chatStore.isGroupMode"/>
+                <el-input v-model="settings.basicInfo.name" placeholder="顾时夜" />
               </el-form-item>
               <el-form-item label="年龄" style="flex:1">
-                <el-input v-model="settings.basicInfo.age" placeholder="31" :disabled="chatStore.isGroupMode"/>
+                <el-input v-model="settings.basicInfo.age" placeholder="31" />
               </el-form-item>
             </div>
             <div class="form-row">
               <el-form-item label="性别" style="flex:1">
-                <el-input v-model="settings.basicInfo.gender" placeholder="男" :disabled="chatStore.isGroupMode"/>
+                <el-input v-model="settings.basicInfo.gender" placeholder="男" />
               </el-form-item>
               <el-form-item label="称呼用户" style="flex:1.5">
-                <el-input v-model="settings.basicInfo.userNickname" placeholder="夫人" :disabled="chatStore.isGroupMode"/>
+                <el-input v-model="settings.basicInfo.userNickname" placeholder="夫人" />
               </el-form-item>
             </div>
           </el-collapse-item>
@@ -146,11 +112,10 @@ const updateSetting = (keyPath, val) => {
                 :model-value="arrayJoin(settings.corePersonality)"
                 @update:model-value="val => settings.corePersonality = arraySplit(val)"
                 type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"
-                :disabled="chatStore.isGroupMode"
               />
             </el-form-item>
             <el-form-item label="语调描述">
-              <el-input v-model="settings.speechStyle.tone" :disabled="chatStore.isGroupMode" />
+              <el-input v-model="settings.speechStyle.tone" />
             </el-form-item>
           </el-collapse-item>
 
@@ -158,14 +123,13 @@ const updateSetting = (keyPath, val) => {
           <el-collapse-item name="background">
             <template #title><span class="collapse-title">📖 背景设定</span></template>
             <el-form-item label="身份标签">
-              <el-input v-model="settings.background.identity" :disabled="chatStore.isGroupMode" />
+              <el-input v-model="settings.background.identity" />
             </el-form-item>
             <el-form-item label="行为准则 (分号分隔)">
               <el-input
                 :model-value="arrayJoin(settings.behaviorRules)"
                 @update:model-value="val => settings.behaviorRules = arraySplit(val)"
                 type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"
-                :disabled="chatStore.isGroupMode"
               />
             </el-form-item>
           </el-collapse-item>
@@ -214,6 +178,7 @@ const updateSetting = (keyPath, val) => {
   height: 100%;
   overflow-y: auto;
   padding: 16px;
+  box-sizing: border-box;
   scrollbar-width: none;
 }
 .settings-body::-webkit-scrollbar { display: none; }
@@ -224,13 +189,6 @@ const updateSetting = (keyPath, val) => {
   color: var(--text-muted);
   font-size: 14px;
 }
-
-/* 群聊人员切换 */
-.group-switcher {
-  margin-bottom: 16px;
-  text-align: center;
-}
-.group-select { width: 100%; }
 
 /* 头像区域 */
 .avatar-section {
@@ -336,6 +294,6 @@ const updateSetting = (keyPath, val) => {
 
 @media (max-width: 1000px) { .settings-card { width: 240px; } }
 @media (max-width: 800px) {
-  .settings-card { width: 100% !important; height: auto !important; max-height: 40%; }
+  .settings-card { width: 100% !important; height: 100% !important; }
 }
 </style>

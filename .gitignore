@@ -12,6 +12,11 @@ npm-debug.log*
 dist/
 build/
 
+# Local SQLite conversation data
+qa-app/backend/data/*.db
+qa-app/backend/data/*.db-shm
+qa-app/backend/data/*.db-wal
+
 # IDE
 .vscode/
 .idea/

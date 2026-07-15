@@ -23,7 +23,6 @@ watch(() => chatStore.isSending, () => { scrollToBottom() })
 // 返回搜索词高亮过滤后的消息列表
 const displayMessages = computed(() => chatStore.filteredHistory)
 
-// 状态变化提示文本 (仅单角色模式下显得合适, 或未来拆分群聊状态)
 const stateNoticeText = computed(() => {
   const sc = chatStore.stateChangeNotice
   if (!sc) return null
@@ -77,36 +76,38 @@ const toggleBookmark = (msgIndex) => {
       class="chat-messages-container"
       :style="chatStore.chatBackground ? { backgroundImage: `url(${chatStore.chatBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
     >
-      <TransitionGroup name="chat-list">
-        <template v-for="(msg, index) in displayMessages" :key="msg.timestamp + index">
-          <MessageBubble
-            v-if="!msg.streaming || msg.content"
-            :msg="msg"
-            :index="index"
-            :search-query="chatStore.searchQuery"
-            @toggle-bookmark="toggleBookmark(index)"
-          />
-        </template>
-      </TransitionGroup>
+      <div class="message-stream">
+        <TransitionGroup name="chat-list">
+          <template v-for="(msg, index) in displayMessages" :key="msg.timestamp + index">
+            <MessageBubble
+              v-if="!msg.streaming || msg.content"
+              :msg="msg"
+              :index="index"
+              :search-query="chatStore.searchQuery"
+              @toggle-bookmark="toggleBookmark(index)"
+            />
+          </template>
+        </TransitionGroup>
 
-      <!-- 对方正在输入（单角色模式） -->
-      <Transition name="typing-fade">
-        <div
-          v-if="chatStore.isSending && !chatStore.isGroupMode && chatStore.characterSettings.basicInfo.name && !chatStore.streamingContent"
-          class="typing-indicator-wrapper"
-        >
-          <el-avatar
-            :src="chatStore.characterSettings.avatar"
-            :size="42"
-            class="typing-avatar"
-          />
-          <div class="typing-bubble">
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
+        <!-- 对方正在输入 -->
+        <Transition name="typing-fade">
+          <div
+            v-if="chatStore.isSending && chatStore.characterSettings.basicInfo.name && !chatStore.streamingContent"
+            class="typing-indicator-wrapper"
+          >
+            <el-avatar
+              :src="chatStore.characterSettings.avatar"
+              :size="42"
+              class="typing-avatar"
+            />
+            <div class="typing-bubble">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
           </div>
-        </div>
-      </Transition>
+        </Transition>
+      </div>
     </div>
 
     <!-- 输入区域 -->
@@ -194,12 +195,17 @@ const toggleBookmark = (msgIndex) => {
 .chat-messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 20px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.message-stream {
+  width: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* 对方正在输入 */
@@ -265,5 +271,19 @@ const toggleBookmark = (msgIndex) => {
 }
 .chat-list-leave-to {
   opacity: 0;
+}
+
+@media (max-width: 800px) {
+  .chat-main-card {
+    border-radius: 16px;
+  }
+
+  .chat-messages-container {
+    padding: 16px 12px;
+  }
+
+  .message-stream {
+    gap: 16px;
+  }
 }
 </style>

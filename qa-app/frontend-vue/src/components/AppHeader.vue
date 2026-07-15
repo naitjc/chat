@@ -1,9 +1,32 @@
 <script setup>
-import { ref, inject, computed, onMounted } from 'vue'
+import { ref, inject, computed, onMounted, watch } from 'vue'
 import { useChatStore } from '../store/chatStore'
 import CharacterWizard from './CharacterWizard.vue'
+import {
+  Brush,
+  ChatLineRound,
+  ChatDotRound,
+  Delete,
+  Download,
+  EditPen,
+  MoreFilled,
+  PictureFilled,
+  Search,
+  Setting,
+} from '@element-plus/icons-vue'
 
-const emit = defineEmits(['select-character', 'update-background'])
+defineProps({
+  isMobile: { type: Boolean, default: false },
+  settingsOpen: { type: Boolean, default: true },
+  conversationsOpen: { type: Boolean, default: true },
+})
+
+const emit = defineEmits([
+  'select-character',
+  'update-background',
+  'toggle-settings',
+  'toggle-conversations',
+])
 const chatStore = useChatStore()
 const showSnow = inject('showSnow', ref(true))
 
@@ -11,7 +34,7 @@ const characters = ref([])
 const selectedCharacterId = ref('')
 const backgroundInputRef = ref(null)
 const showWizard = ref(false)
-const showThemePicker = ref(false)
+const showMoreMenu = ref(false)
 
 const themes = [
   { id: 'default', label: '✨ 默认', color: '#7c83fd' },
@@ -23,6 +46,12 @@ const themes = [
 // 合并预设角色 + 自定义角色
 const allCharacters = computed(() => [...characters.value, ...chatStore.customCharacters])
 
+watch(
+  () => chatStore.characterSettings.id,
+  (characterId) => { selectedCharacterId.value = characterId || '' },
+  { immediate: true },
+)
+
 onMounted(async () => {
   try {
     const response = await fetch('/characters.json')
@@ -30,19 +59,16 @@ onMounted(async () => {
   } catch (e) { console.error('加载角色失败:', e) }
 })
 
-// 单角色 / 群聊模式下的角色选择
 const onCharacterSelect = () => {
-  if (chatStore.isGroupMode) {
-    const char = allCharacters.value.find(c => c.id === selectedCharacterId.value)
-    if (char) chatStore.addGroupCharacter(char)
-    selectedCharacterId.value = ''
-  } else {
-    const char = allCharacters.value.find(c => c.id === selectedCharacterId.value)
-    emit('select-character', char || null)
-  }
+  const char = allCharacters.value.find(c => c.id === selectedCharacterId.value)
+  emit('select-character', char || null)
+  showMoreMenu.value = false
 }
 
-const triggerBackgroundUpload = () => backgroundInputRef.value.click()
+const triggerBackgroundUpload = () => {
+  showMoreMenu.value = false
+  backgroundInputRef.value?.click()
+}
 const handleBackgroundChange = (e) => {
   const file = e.target.files[0]
   if (file) {
@@ -53,7 +79,10 @@ const handleBackgroundChange = (e) => {
   e.target.value = ''
 }
 
-const clearHistory = () => chatStore.clearHistory()
+const clearHistory = () => {
+  chatStore.clearHistory()
+  showMoreMenu.value = false
+}
 
 const deleteCustomChar = (charId) => {
   chatStore.deleteCustomCharacter(charId)
@@ -73,28 +102,26 @@ const exportHistory = () => {
   const a = document.createElement('a')
   a.href = url; a.download = `对话记录_${new Date().toLocaleDateString('zh-CN')}.txt`
   a.click(); URL.revokeObjectURL(url)
+  showMoreMenu.value = false
 }
 
 const applyTheme = (theme) => {
   chatStore.setTheme(theme)
-  showThemePicker.value = false
+  showMoreMenu.value = false
+}
+
+const openWizard = () => {
+  showWizard.value = true
+  showMoreMenu.value = false
 }
 
 const onWizardSave = (character) => {
   chatStore.saveCustomCharacter(character)
   showWizard.value = false
-  if (!chatStore.isGroupMode) {
-    emit('select-character', character)
-  } else {
-    chatStore.addGroupCharacter(character)
-  }
+  emit('select-character', character)
 }
 
-// 头部显示：群聊模式显示所有角色头像，否则显示当前角色
 const displayName = computed(() => {
-  if (chatStore.isGroupMode && chatStore.groupCharacters.length) {
-    return `群聊 · ${chatStore.groupCharacters.length}位角色`
-  }
   return chatStore.characterSettings.basicInfo.name || ''
 })
 </script>
@@ -102,14 +129,14 @@ const displayName = computed(() => {
 <template>
   <el-header class="app-header">
     <div class="header-left">
-      <!-- 角色选择 -->
       <el-select
+        v-if="!isMobile"
         v-model="selectedCharacterId"
-        :placeholder="chatStore.isGroupMode ? '➕ 添加角色' : '✨ 选择角色'"
+        placeholder="✨ 选择角色"
         @change="onCharacterSelect"
         class="character-select"
       >
-        <el-option value="" :label="chatStore.isGroupMode ? '— 选择添加 —' : '— 自定义 —'" />
+        <el-option value="" label="— 自定义 —" />
         <el-option-group label="预设角色">
           <el-option v-for="c in characters" :key="c.id" :value="c.id" :label="c.basicInfo.name" />
         </el-option-group>
@@ -127,92 +154,143 @@ const displayName = computed(() => {
         </el-option-group>
       </el-select>
 
-      <!-- 头像与名称 -->
-      <template v-if="chatStore.isGroupMode && chatStore.groupCharacters.length">
-        <div class="group-avatars">
-          <el-avatar
-            v-for="(c, i) in chatStore.groupCharacters.slice(0, 3)"
-            :key="c.id"
-            :src="c.avatar"
-            :size="30"
-            class="group-avatar"
-            :style="{ marginLeft: i > 0 ? '-10px' : '0', zIndex: 3 - i }"
-          />
-          <span v-if="chatStore.groupCharacters.length > 3" class="group-more">
-            +{{ chatStore.groupCharacters.length - 3 }}
-          </span>
-        </div>
-      </template>
-      <template v-else-if="chatStore.characterSettings.basicInfo.name">
+      <template v-if="chatStore.characterSettings.basicInfo.name">
         <el-avatar :src="chatStore.characterSettings.avatar" :size="34" class="header-avatar" />
       </template>
 
-      <span v-if="displayName" class="header-char-name">{{ displayName }}</span>
+      <span class="header-char-name">{{ displayName || '选择角色' }}</span>
     </div>
 
     <div class="header-right">
-      <!-- 群聊模式切换 -->
-      <el-tooltip :content="chatStore.isGroupMode ? '退出群聊' : '开启群聊'" placement="bottom">
-        <el-button class="icon-btn" :class="{ active: chatStore.isGroupMode }" @click="chatStore.toggleGroupMode()">
-          👥
-        </el-button>
+      <el-tooltip :content="conversationsOpen ? '收起会话列表' : '展开会话列表'" placement="bottom">
+        <el-button
+          :icon="ChatLineRound"
+          class="icon-btn"
+          :class="{ active: conversationsOpen }"
+          aria-label="会话列表"
+          @click="emit('toggle-conversations')"
+        />
       </el-tooltip>
 
-      <!-- 创建角色 -->
-      <el-tooltip content="创建新角色" placement="bottom">
-        <el-button class="icon-btn" @click="showWizard = true">✏️</el-button>
+      <el-tooltip :content="isMobile ? '角色设置' : (settingsOpen ? '收起角色设置' : '展开角色设置')" placement="bottom">
+        <el-button
+          :icon="Setting"
+          class="icon-btn"
+          :class="{ active: settingsOpen }"
+          aria-label="角色设置"
+          @click="emit('toggle-settings')"
+        />
       </el-tooltip>
 
-      <!-- 搜索 -->
+      <template v-if="!isMobile">
+        <el-tooltip content="创建新角色" placement="bottom">
+          <el-button :icon="EditPen" class="icon-btn" aria-label="创建新角色" @click="openWizard" />
+        </el-tooltip>
+      </template>
+
       <el-tooltip content="搜索消息" placement="bottom">
-        <el-button class="icon-btn" :class="{ active: chatStore.showSearch }" @click="chatStore.toggleSearch()">🔍</el-button>
+        <el-button
+          :icon="Search"
+          class="icon-btn"
+          :class="{ active: chatStore.showSearch }"
+          aria-label="搜索消息"
+          @click="chatStore.toggleSearch()"
+        />
       </el-tooltip>
 
-      <!-- 雪花 -->
-      <el-tooltip content="切换雪花特效" placement="bottom">
-        <el-button class="icon-btn" :class="{ active: showSnow }" @click="showSnow = !showSnow">❄</el-button>
-      </el-tooltip>
-
-      <!-- 主题 -->
-      <el-popover :visible="showThemePicker" placement="bottom" :width="220" trigger="click">
+      <el-popover
+        v-model:visible="showMoreMenu"
+        placement="bottom-end"
+        :width="300"
+        trigger="click"
+        popper-class="app-more-popover"
+      >
         <template #reference>
-          <el-tooltip content="切换主题" placement="bottom">
-            <el-button class="icon-btn" @click="showThemePicker = !showThemePicker">🎨</el-button>
-          </el-tooltip>
+          <el-button
+            :icon="MoreFilled"
+            class="icon-btn"
+            aria-label="更多操作"
+            title="更多操作"
+          />
         </template>
-        <div class="theme-picker">
-          <div class="theme-picker-title">选择主题</div>
-          <div class="theme-grid">
-            <div
-              v-for="t in themes" :key="t.id"
-              class="theme-item"
-              :class="{ selected: chatStore.currentTheme === t.id }"
-              :style="{ '--dot-color': t.color }"
-              @click="applyTheme(t.id)"
+
+        <div class="more-menu">
+          <section v-if="isMobile" class="menu-section">
+            <div class="menu-section-title">角色</div>
+            <el-select
+              v-model="selectedCharacterId"
+              placeholder="切换角色"
+              @change="onCharacterSelect"
+              class="menu-character-select"
             >
-              <span class="theme-dot"></span>
-              <span>{{ t.label }}</span>
+              <el-option value="" label="— 自定义 —" />
+              <el-option-group label="预设角色">
+                <el-option v-for="c in characters" :key="c.id" :value="c.id" :label="c.basicInfo.name" />
+              </el-option-group>
+              <el-option-group v-if="chatStore.customCharacters.length" label="我的角色">
+                <el-option v-for="c in chatStore.customCharacters" :key="c.id" :value="c.id" :label="c.basicInfo.name" />
+              </el-option-group>
+            </el-select>
+            <div class="menu-actions-grid compact-actions single-action">
+              <el-button class="menu-action" @click="openWizard">
+                <el-icon><EditPen /></el-icon>
+                <span>创建角色</span>
+              </el-button>
             </div>
-          </div>
+          </section>
+
+          <section class="menu-section">
+            <div class="menu-section-title"><el-icon><Brush /></el-icon> 外观</div>
+            <div class="theme-grid">
+              <button
+                v-for="t in themes" :key="t.id"
+                type="button"
+                class="theme-item"
+                :class="{ selected: chatStore.currentTheme === t.id }"
+                :style="{ '--dot-color': t.color }"
+                @click="applyTheme(t.id)"
+              >
+                <span class="theme-dot"></span>
+                <span>{{ t.label }}</span>
+              </button>
+            </div>
+            <div class="menu-actions-grid">
+              <el-button class="menu-action" :class="{ active: showSnow }" @click="showSnow = !showSnow">
+                <span class="menu-action-emoji">❄</span>
+                <span>{{ showSnow ? '关闭特效' : '开启特效' }}</span>
+              </el-button>
+              <el-button class="menu-action" @click="triggerBackgroundUpload">
+                <el-icon><PictureFilled /></el-icon>
+                <span>聊天背景</span>
+              </el-button>
+            </div>
+          </section>
+
+          <section class="menu-section">
+            <div class="menu-section-title"><el-icon><ChatDotRound /></el-icon> 对话</div>
+            <div class="menu-actions-grid">
+              <el-button class="menu-action" :disabled="!chatStore.conversationHistory.length" @click="exportHistory">
+                <el-icon><Download /></el-icon>
+                <span>导出对话</span>
+              </el-button>
+              <el-popconfirm
+                title="确定清空所有对话吗？"
+                confirm-button-text="清空"
+                cancel-button-text="取消"
+                @confirm="clearHistory"
+              >
+                <template #reference>
+                  <el-button class="menu-action danger-action">
+                    <el-icon><Delete /></el-icon>
+                    <span>清空对话</span>
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
+          </section>
         </div>
       </el-popover>
 
-      <!-- 导出 -->
-      <el-tooltip content="导出对话" placement="bottom">
-        <el-button class="icon-btn" @click="exportHistory">📤</el-button>
-      </el-tooltip>
-
-      <!-- 清空 -->
-      <el-popconfirm title="确定清空所有对话吗？" confirm-button-text="清空" cancel-button-text="取消" @confirm="clearHistory">
-        <template #reference>
-          <el-button class="icon-btn danger" title="清空对话">🗑</el-button>
-        </template>
-      </el-popconfirm>
-
-      <!-- 背景 -->
-      <el-tooltip content="设置聊天背景" placement="bottom">
-        <el-button class="bg-btn" @click="triggerBackgroundUpload">🖼 背景</el-button>
-      </el-tooltip>
       <input type="file" ref="backgroundInputRef" accept="image/*" style="display:none" @change="handleBackgroundChange">
     </div>
   </el-header>
@@ -238,8 +316,19 @@ const displayName = computed(() => {
   transition: var(--transition);
 }
 
-.header-left { display: flex; align-items: center; gap: 10px; }
-.header-right { display: flex; align-items: center; gap: 6px; }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 
 .character-select { width: 150px; }
 :deep(.character-select .el-input__wrapper) {
@@ -260,19 +349,9 @@ const displayName = computed(() => {
   font-weight: 600;
   color: var(--text-accent);
   letter-spacing: 0.3px;
-}
-
-/* 群聊头像叠加 */
-.group-avatars { display: flex; align-items: center; }
-.group-avatar { border: 2px solid var(--border-glass-strong) !important; }
-.group-more {
-  background: var(--bg-glass-hover);
-  border-radius: 12px;
-  padding: 2px 7px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 图标按钮 */
@@ -296,28 +375,75 @@ const displayName = computed(() => {
   background: rgba(124, 131, 253, 0.2) !important;
   border-color: var(--primary) !important;
 }
-.icon-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.1) !important;
-  border-color: rgba(239, 68, 68, 0.3) !important;
+.more-menu {
+  color: var(--text-primary);
 }
 
-.bg-btn {
-  height: 34px !important;
-  border-radius: 12px !important;
-  background: var(--bg-glass) !important;
-  border: 1px solid var(--border-glass) !important;
-  font-size: 13px;
-  color: var(--text-accent) !important;
-  font-weight: 500;
-  transition: var(--transition);
+.menu-section + .menu-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-glass);
 }
-.bg-btn:hover { background: var(--bg-glass-hover) !important; transform: translateY(-1px); }
 
-/* 主题选择器 */
-.theme-picker-title {
-  font-size: 13px; font-weight: 600; color: var(--text-secondary);
-  margin-bottom: 10px;
+.menu-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 9px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
+
+.menu-character-select {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.menu-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.compact-actions {
+  margin-top: 0;
+}
+
+.single-action {
+  grid-template-columns: 1fr;
+}
+
+.menu-action {
+  width: 100%;
+  margin: 0 !important;
+  justify-content: flex-start;
+  gap: 7px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-glass);
+  border-color: var(--border-glass);
+}
+
+.menu-action:hover,
+.menu-action.active {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+.menu-action-emoji {
+  width: 1em;
+  text-align: center;
+}
+
+.danger-action,
+.danger-action:hover {
+  color: #dc2626;
+}
+
 .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .theme-item {
   display: flex; align-items: center; gap: 8px;
@@ -325,6 +451,10 @@ const displayName = computed(() => {
   border-radius: 10px;
   cursor: pointer;
   font-size: 13px;
+  font-family: inherit;
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
   transition: all 0.2s;
   border: 1px solid transparent;
 }
@@ -335,5 +465,37 @@ const displayName = computed(() => {
   border-radius: 50%;
   background: var(--dot-color);
   flex-shrink: 0;
+}
+
+@media (max-width: 800px) {
+  .app-header {
+    min-height: 52px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    border-radius: 16px;
+  }
+
+  .header-left {
+    gap: 8px;
+    max-width: calc(100% - 132px);
+  }
+
+  .header-avatar {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .header-char-name {
+    font-size: 13px;
+  }
+
+  .header-right {
+    gap: 4px;
+  }
+
+  .icon-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
 }
 </style>

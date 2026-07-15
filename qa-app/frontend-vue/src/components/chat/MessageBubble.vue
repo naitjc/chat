@@ -49,26 +49,16 @@ const handleAvatarChange = (e) => {
     const reader = new FileReader()
     reader.onload = (ev) => {
       if (isUser.value) chatStore.setUserAvatar(ev.target.result)
-      else if (chatStore.isGroupMode && props.msg.characterId) {
-        // 更新群聊单个角色的头像不在本次迭代范围，只是占位
-      } else chatStore.setBotAvatar(ev.target.result)
+      else chatStore.setBotAvatar(ev.target.result)
     }
     reader.readAsDataURL(file)
   }
   e.target.value = ''
 }
 
-// 根据单群聊模式获取头像和名称
 const avatarSrc = computed(() => {
   if (isUser.value) return chatStore.userAvatar
-  if (chatStore.isGroupMode && props.msg.characterAvatar) return props.msg.characterAvatar
   return chatStore.characterSettings.avatar
-})
-
-const charName = computed(() => {
-  if (isUser.value) return '我'
-  if (chatStore.isGroupMode && props.msg.characterName) return props.msg.characterName
-  return chatStore.characterSettings.basicInfo.name || 'Bot'
 })
 
 </script>
@@ -78,15 +68,13 @@ const charName = computed(() => {
     
     <!-- 头像 -->
     <div class="avatar-col">
-      <el-avatar :src="avatarSrc" :size="42" class="message-avatar" @click="!isUser && !chatStore.isGroupMode && triggerAvatarUpload()"/>
-      <input v-if="!isUser && !chatStore.isGroupMode" type="file" ref="avatarInputRef" accept="image/*" style="display: none;" @change="handleAvatarChange">
+      <el-avatar :src="avatarSrc" :size="42" class="message-avatar" @click="!isUser && triggerAvatarUpload()"/>
+      <input v-if="!isUser" type="file" ref="avatarInputRef" accept="image/*" style="display: none;" @change="handleAvatarChange">
     </div>
 
     <!-- 消息区域 -->
     <div class="message-col">
       <div class="message-header" :class="isUser ? 'align-end' : 'align-start'">
-        <!-- 群聊模式下显示名称 -->
-        <span v-if="chatStore.isGroupMode && !isUser" class="char-name">{{ charName }}</span>
         <span class="message-time">{{ formattedTime }}</span>
         <span 
           class="bookmark-icon" 
@@ -113,9 +101,9 @@ const charName = computed(() => {
 <style scoped>
 .chat-message-item {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-start;
-  max-width: 85%;
+  max-width: min(88%, 830px);
 }
 
 .is-user {
@@ -130,7 +118,7 @@ const charName = computed(() => {
 
 .avatar-col {
   flex-shrink: 0;
-  margin-top: 18px; /* 对齐气泡 */
+  margin-top: 16px; /* 对齐消息头与气泡 */
 }
 
 .message-avatar {
@@ -159,11 +147,6 @@ const charName = computed(() => {
 }
 .align-end { flex-direction: row-reverse; }
 .align-start { flex-direction: row; }
-
-.char-name {
-  font-weight: 600;
-  color: var(--text-secondary);
-}
 
 .bookmark-icon {
   cursor: pointer;

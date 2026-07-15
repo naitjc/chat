@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useChatStore } from '../../store/chatStore'
 
 const props = defineProps({
@@ -8,6 +8,7 @@ const props = defineProps({
 
 const chatStore = useChatStore()
 const state = computed(() => props.overrideState || chatStore.characterSettings.relationshipState)
+const showDetails = ref(false)
 
 // 情绪描述
 const moodConfig = computed(() => {
@@ -44,56 +45,67 @@ const affectionColor = computed(() => {
 
 <template>
   <div v-if="state" class="status-panel">
-    <!-- 顶部状态行 -->
     <div class="status-header">
-      <span class="stage-tag" :style="{ '--stage-color': stageInfo.color }">
-        {{ stageInfo.label }}
-      </span>
-      <span class="mood-tag" :class="moodConfig.cls">
-        {{ moodConfig.emoji }} {{ moodConfig.text }}
-      </span>
-    </div>
-
-    <!-- 好感度 -->
-    <div class="status-item">
-      <div class="item-label">
-        <span class="label-text">💖 好感度</span>
-        <span class="label-val">{{ state.affection }}<span class="unit">/100</span></span>
-      </div>
-      <div class="progress-wrap">
-        <div
-          class="progress-bar affection-bar"
-          :style="{ width: state.affection + '%', background: affectionColor }"
-        ></div>
-      </div>
-    </div>
-
-    <!-- 情绪 -->
-    <div class="status-item">
-      <div class="item-label">
-        <span class="label-text">🌤 情绪值</span>
-        <span class="label-val" :class="state.mood < 0 ? 'neg' : 'pos'">
-          {{ state.mood > 0 ? '+' : '' }}{{ state.mood }}<span class="unit">/50</span>
+      <div class="status-tags">
+        <span class="stage-tag" :style="{ '--stage-color': stageInfo.color }">
+          {{ stageInfo.label }}
+        </span>
+        <span class="mood-tag" :class="moodConfig.cls">
+          {{ moodConfig.emoji }} {{ moodConfig.text }}
         </span>
       </div>
-      <div class="progress-wrap">
-        <div class="mood-center-line"></div>
-        <div
-          class="progress-bar mood-bar"
-          :style="{
-            width: Math.abs(state.mood) + '%',
-            left: state.mood >= 0 ? '50%' : (50 - Math.abs(state.mood)) + '%',
-            background: state.mood >= 0 ? 'linear-gradient(90deg, #34d399, #10b981)' : 'linear-gradient(90deg, #f87171, #ef4444)'
-          }"
-        ></div>
-      </div>
+      <button
+        type="button"
+        class="status-toggle"
+        :aria-expanded="showDetails"
+        @click="showDetails = !showDetails"
+      >
+        {{ showDetails ? '收起' : '查看状态' }}
+      </button>
     </div>
+
+    <Transition name="status-details">
+      <div v-if="showDetails" class="status-details">
+        <div class="status-item">
+          <div class="item-label">
+            <span class="label-text">💖 好感度</span>
+            <span class="label-val">{{ state.affection }}<span class="unit">/100</span></span>
+          </div>
+          <div class="progress-wrap">
+            <div
+              class="progress-bar affection-bar"
+              :style="{ width: state.affection + '%', background: affectionColor }"
+            ></div>
+          </div>
+        </div>
+
+        <div class="status-item">
+          <div class="item-label">
+            <span class="label-text">🌤 情绪值</span>
+            <span class="label-val" :class="state.mood < 0 ? 'neg' : 'pos'">
+              {{ state.mood > 0 ? '+' : '' }}{{ state.mood }}<span class="unit">/50</span>
+            </span>
+          </div>
+          <div class="progress-wrap">
+            <div class="mood-center-line"></div>
+            <div
+              class="progress-bar mood-bar"
+              :style="{
+                width: Math.abs(state.mood) + '%',
+                left: state.mood >= 0 ? '50%' : (50 - Math.abs(state.mood)) + '%',
+                background: state.mood >= 0 ? 'linear-gradient(90deg, #34d399, #10b981)' : 'linear-gradient(90deg, #f87171, #ef4444)'
+              }"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
 .status-panel {
-  padding: 16px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.35);
   backdrop-filter: blur(12px);
   border-radius: 18px;
@@ -105,9 +117,35 @@ const affectionColor = computed(() => {
 /* 顶部 */
 .status-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.status-tags {
+  display: flex;
   gap: 8px;
-  margin-bottom: 14px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.status-toggle {
+  flex-shrink: 0;
+  padding: 3px 0 3px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.status-toggle:hover {
+  color: var(--primary);
+}
+
+.status-details {
+  padding-top: 14px;
 }
 
 .stage-tag {
@@ -204,5 +242,16 @@ const affectionColor = computed(() => {
   position: absolute;
   top: 0;
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.status-details-enter-active,
+.status-details-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.status-details-enter-from,
+.status-details-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>
