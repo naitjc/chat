@@ -14,6 +14,7 @@ import {
   RefreshLeft,
   Search,
   Setting,
+  User,
 } from '@element-plus/icons-vue'
 import { readOptimizedImage } from '../utils/imageFile'
 import { isNativeApp } from '../services/platform'
@@ -42,6 +43,7 @@ const showSnow = inject('showSnow', ref(true))
 const characters = ref([])
 const selectedCharacterId = ref('')
 const backgroundInputRef = ref(null)
+const userAvatarInputRef = ref(null)
 const showWizard = ref(false)
 const showMoreMenu = ref(false)
 const nativeSettingsOpen = ref(false)
@@ -55,6 +57,7 @@ const themes = [
   { id: 'sakura',  label: '🌸 樱花', color: '#e879a0' },
   { id: 'ocean',   label: '🌊 海洋', color: '#0ea5e9' },
 ]
+const defaultUserAvatar = '/avatars/用户默认头像.png'
 
 // 合并预设角色 + 自定义角色
 const allCharacters = computed(() => [...characters.value, ...chatStore.customCharacters])
@@ -128,6 +131,46 @@ const resetChatBackground = async () => {
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(error.message || '恢复背景失败')
+    }
+  }
+}
+
+const triggerUserAvatarUpload = () => {
+  showMoreMenu.value = false
+  userAvatarInputRef.value?.click()
+}
+
+const handleUserAvatarChange = async (e) => {
+  const file = e.target.files[0]
+  try {
+    if (file) {
+      chatStore.setUserAvatar(await readOptimizedImage(file, { maxDimension: 512 }))
+      ElMessage.success('我的头像已更新')
+    }
+  } catch (error) {
+    ElMessage.error(error.message)
+  }
+  e.target.value = ''
+}
+
+const resetUserAvatar = async () => {
+  if (chatStore.userAvatar === defaultUserAvatar) return
+  try {
+    await ElMessageBox.confirm(
+      '将当前聊天存档中的个人头像恢复为默认头像。',
+      '恢复默认头像',
+      {
+        confirmButtonText: '恢复默认',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    chatStore.setUserAvatar(defaultUserAvatar)
+    showMoreMenu.value = false
+    ElMessage.success('已恢复默认头像')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || '恢复头像失败')
     }
   }
 }
@@ -373,6 +416,26 @@ const displayName = computed(() => {
           </section>
 
           <section class="menu-section">
+            <div class="menu-section-title"><el-icon><User /></el-icon> 我的头像</div>
+            <div class="user-avatar-setting">
+              <el-avatar :src="chatStore.userAvatar" :size="42" />
+              <div class="user-avatar-actions">
+                <el-button
+                  size="small"
+                  :disabled="chatStore.isActiveChapterReadOnly"
+                  @click="triggerUserAvatarUpload"
+                >更换头像</el-button>
+                <el-button
+                  size="small"
+                  text
+                  :disabled="chatStore.userAvatar === defaultUserAvatar || chatStore.isActiveChapterReadOnly"
+                  @click="resetUserAvatar"
+                >恢复默认</el-button>
+              </div>
+            </div>
+          </section>
+
+          <section class="menu-section">
             <div class="menu-section-title"><el-icon><Brush /></el-icon> 外观</div>
             <div class="theme-grid">
               <button
@@ -430,6 +493,7 @@ const displayName = computed(() => {
       </el-popover>
 
       <input ref="backgroundInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleBackgroundChange">
+      <input ref="userAvatarInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleUserAvatarChange">
     </div>
   </el-header>
 
@@ -611,6 +675,29 @@ const displayName = computed(() => {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 8px;
+}
+
+.user-avatar-setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar-setting :deep(.el-avatar) {
+  flex-shrink: 0;
+  border: 2px solid var(--border-glass-strong);
+}
+
+.user-avatar-actions {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-avatar-actions :deep(.el-button) {
+  margin: 0;
 }
 
 .compact-actions {

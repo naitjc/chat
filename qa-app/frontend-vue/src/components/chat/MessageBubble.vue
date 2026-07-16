@@ -77,10 +77,10 @@ const avatarSrc = computed(() => {
     <!-- 头像 -->
     <div class="avatar-col">
       <button
-        v-if="!isUser && !chatStore.isActiveChapterReadOnly"
+        v-if="!chatStore.isActiveChapterReadOnly"
         type="button"
         class="avatar-button"
-        aria-label="更换角色头像"
+        :aria-label="isUser ? '更换我的头像' : '更换角色头像'"
         @click="triggerAvatarUpload"
       >
         <el-avatar
@@ -95,7 +95,7 @@ const avatarSrc = computed(() => {
         :size="42"
         class="message-avatar"
       />
-      <input v-if="!isUser && !chatStore.isActiveChapterReadOnly" ref="avatarInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleAvatarChange">
+      <input v-if="!chatStore.isActiveChapterReadOnly" ref="avatarInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleAvatarChange">
     </div>
 
     <!-- 消息区域 -->
