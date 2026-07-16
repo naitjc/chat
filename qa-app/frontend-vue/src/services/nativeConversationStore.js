@@ -22,6 +22,11 @@ const normalizedTitle = (value, fallback) => (
 )
 const normalizedGoal = (value) => String(value || '').trim().slice(0, 500)
 
+function normalizedGoalStatus(value) {
+  if (value === 'active' || value === 'achieved') return value
+  throw new Error('目标状态必须是 active 或 achieved')
+}
+
 function normalizedMode(value) {
   const mode = value == null ? 'free' : String(value).trim()
   if (mode === 'free' || mode === 'story') return mode
@@ -94,6 +99,9 @@ async function getDatabase() {
         title_is_custom INTEGER NOT NULL DEFAULT 0,
         mode TEXT NOT NULL DEFAULT 'free',
         goal TEXT NOT NULL DEFAULT '',
+        goal_status TEXT NOT NULL DEFAULT 'active',
+        goal_achieved_at TEXT,
+        goal_resolution TEXT NOT NULL DEFAULT '',
         character_id TEXT NOT NULL DEFAULT '',
         character_name TEXT NOT NULL DEFAULT '',
         character_snapshot_json TEXT NOT NULL DEFAULT '{}',
@@ -126,6 +134,20 @@ async function getDatabase() {
       CREATE INDEX IF NOT EXISTS idx_native_chapters
         ON conversations(relationship_id, chapter_number);
     `)
+    const relationshipColumns = new Set(
+      ((await db.query('PRAGMA table_info(relationships)')).values || [])
+        .map(column => column.name),
+    )
+    const missingColumns = [
+      ['goal_status', "TEXT NOT NULL DEFAULT 'active'"],
+      ['goal_achieved_at', 'TEXT'],
+      ['goal_resolution', "TEXT NOT NULL DEFAULT ''"],
+    ]
+    for (const [name, definition] of missingColumns) {
+      if (!relationshipColumns.has(name)) {
+        await db.execute(`ALTER TABLE relationships ADD COLUMN ${name} ${definition};`)
+      }
+    }
     return db
   })()
   try {
@@ -186,6 +208,9 @@ async function normalizeRelationship(row, includeChapters = true) {
     titleCustomized: Boolean(row.title_is_custom),
     mode: row.mode === 'story' ? 'story' : 'free',
     goal: row.goal || '',
+    goalStatus: row.goal_status === 'achieved' ? 'achieved' : 'active',
+    goalAchievedAt: row.goal_achieved_at || null,
+    goalResolution: row.goal_resolution || '',
     characterId: row.character_id,
     characterName: row.character_name,
     forkedFromRelationshipId: row.forked_from_relationship_id || null,
@@ -252,14 +277,15 @@ export async function createRelationship(input = {}) {
   await inTransaction(async (db) => {
     await db.run(
       `INSERT INTO relationships (
-        id, title, title_is_custom, mode, goal, character_id, character_name,
+        id, title, title_is_custom, mode, goal, goal_status, goal_achieved_at,
+        goal_resolution, character_id, character_name,
         character_snapshot_json, relationship_state_json, memory_json,
         initial_state_json, initial_memory_json, forked_from_relationship_id,
         forked_from_conversation_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         relationshipId, relationshipTitle, input.relationshipTitle ? 1 : 0,
-        mode, goal, String(characterId || ''), String(characterName || ''),
+        mode, goal, 'active', null, '', String(characterId || ''), String(characterName || ''),
         JSON.stringify(runtime.character), JSON.stringify(runtime.relationshipState),
         JSON.stringify(runtime.memory), JSON.stringify(runtime.initialState),
         JSON.stringify(runtime.initialMemory), input.forkedFromRelationshipId || null,
@@ -431,12 +457,31 @@ export async function updateRelationshipSettings(id, input = {}) {
   const relationship = await getRelationship(id)
   if (!relationship) return null
   if (relationship.mode !== 'story') throw new Error('自由模式没有故事目标')
-  const goal = normalizedGoal(input.goal)
+  const goalWasProvided = Object.prototype.hasOwnProperty.call(input, 'goal')
+  const goal = goalWasProvided ? normalizedGoal(input.goal) : relationship.goal
   if (!goal) throw new Error('故事目标不能为空')
+  const goalChanged = goalWasProvided && goal !== relationship.goal
+  let goalStatus = goalChanged ? 'active' : relationship.goalStatus
+  let goalAchievedAt = goalChanged ? null : relationship.goalAchievedAt
+  let goalResolution = goalChanged ? '' : relationship.goalResolution
+
+  if (Object.prototype.hasOwnProperty.call(input, 'goalStatus')) {
+    goalStatus = normalizedGoalStatus(input.goalStatus)
+    if (goalStatus === 'achieved') {
+      goalAchievedAt = relationship.goalAchievedAt || new Date().toISOString()
+      goalResolution = String(input.goalResolution || '').trim().slice(0, 500)
+      if (!goalResolution) throw new Error('确认目标达成时需要提供判断依据')
+    } else {
+      goalAchievedAt = null
+      goalResolution = ''
+    }
+  }
+
   const db = await getDatabase()
   await db.run(
-    'UPDATE relationships SET goal = ?, updated_at = ? WHERE id = ?',
-    [goal, new Date().toISOString(), id],
+    `UPDATE relationships SET goal = ?, goal_status = ?, goal_achieved_at = ?,
+     goal_resolution = ?, updated_at = ? WHERE id = ?`,
+    [goal, goalStatus, goalAchievedAt, goalResolution, new Date().toISOString(), id],
   )
   return getRelationship(id)
 }

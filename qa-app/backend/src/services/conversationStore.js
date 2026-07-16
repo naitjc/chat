@@ -74,6 +74,9 @@ function migrateSchema() {
       title_is_custom INTEGER NOT NULL DEFAULT 0,
       mode TEXT NOT NULL DEFAULT 'story',
       goal TEXT NOT NULL DEFAULT '',
+      goal_status TEXT NOT NULL DEFAULT 'active',
+      goal_achieved_at TEXT,
+      goal_resolution TEXT NOT NULL DEFAULT '',
       character_id TEXT NOT NULL DEFAULT '',
       character_name TEXT NOT NULL DEFAULT '',
       character_snapshot_json TEXT NOT NULL,
@@ -110,6 +113,24 @@ function migrateSchema() {
     "relationships",
     relationshipColumns,
     "goal",
+    "TEXT NOT NULL DEFAULT ''",
+  );
+  addColumnIfMissing(
+    "relationships",
+    relationshipColumns,
+    "goal_status",
+    "TEXT NOT NULL DEFAULT 'active'",
+  );
+  addColumnIfMissing(
+    "relationships",
+    relationshipColumns,
+    "goal_achieved_at",
+    "TEXT",
+  );
+  addColumnIfMissing(
+    "relationships",
+    relationshipColumns,
+    "goal_resolution",
     "TEXT NOT NULL DEFAULT ''",
   );
 
@@ -226,12 +247,13 @@ const getConversationStatement = db.prepare(`
 `);
 const insertRelationshipStatement = db.prepare(`
   INSERT INTO relationships (
-    id, title, title_is_custom, mode, goal, character_id, character_name,
+    id, title, title_is_custom, mode, goal, goal_status, goal_achieved_at,
+    goal_resolution, character_id, character_name,
     character_snapshot_json, relationship_state_json, memory_json,
     initial_state_json, initial_memory_json,
     forked_from_relationship_id, forked_from_conversation_id,
     created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const insertConversationStatement = db.prepare(`
   INSERT INTO conversations (
@@ -268,8 +290,11 @@ const renameRelationshipStatement = db.prepare(`
   SET title = ?, title_is_custom = 1, updated_at = ?
   WHERE id = ?
 `);
-const updateRelationshipGoalStatement = db.prepare(`
-  UPDATE relationships SET goal = ?, updated_at = ? WHERE id = ?
+const updateRelationshipSettingsStatement = db.prepare(`
+  UPDATE relationships
+  SET goal = ?, goal_status = ?, goal_achieved_at = ?, goal_resolution = ?,
+      updated_at = ?
+  WHERE id = ?
 `);
 const deleteConversationStatement = db.prepare(
   "DELETE FROM conversations WHERE id = ?",
@@ -305,6 +330,13 @@ function normalizedGoal(value) {
   return String(value || "").trim().slice(0, 500);
 }
 
+function normalizedGoalStatus(value) {
+  if (value === "active" || value === "achieved") return value;
+  const error = new Error("目标状态必须是 active 或 achieved");
+  error.status = 400;
+  throw error;
+}
+
 function normalizeConversation(row, includeSnapshot = false) {
   if (!row) return null;
   const result = {
@@ -336,6 +368,9 @@ function normalizeRelationship(row, includeChapters = true) {
     titleCustomized: Boolean(row.title_is_custom),
     mode: row.mode === "free" ? "free" : "story",
     goal: row.goal || "",
+    goalStatus: row.goal_status === "achieved" ? "achieved" : "active",
+    goalAchievedAt: row.goal_achieved_at || null,
+    goalResolution: row.goal_resolution || "",
     characterId: row.character_id,
     characterName: row.character_name,
     forkedFromRelationshipId: row.forked_from_relationship_id || null,
@@ -445,6 +480,9 @@ function createRelationship(input = {}) {
       input.relationshipTitle ? 1 : 0,
       mode,
       goal,
+      "active",
+      null,
+      "",
       String(characterId || ""),
       String(characterName || ""),
       JSON.stringify(runtime.character),
@@ -698,13 +736,44 @@ function updateRelationshipSettings(id, input = {}) {
     error.status = 409;
     throw error;
   }
-  const goal = normalizedGoal(input.goal);
+  const goalWasProvided = Object.prototype.hasOwnProperty.call(input, "goal");
+  const goal = goalWasProvided
+    ? normalizedGoal(input.goal)
+    : relationship.goal;
   if (!goal) {
     const error = new Error("故事目标不能为空");
     error.status = 400;
     throw error;
   }
-  updateRelationshipGoalStatement.run(goal, new Date().toISOString(), id);
+  const goalChanged = goalWasProvided && goal !== relationship.goal;
+  let goalStatus = goalChanged ? "active" : relationship.goalStatus;
+  let goalAchievedAt = goalChanged ? null : relationship.goalAchievedAt;
+  let goalResolution = goalChanged ? "" : relationship.goalResolution;
+
+  if (Object.prototype.hasOwnProperty.call(input, "goalStatus")) {
+    goalStatus = normalizedGoalStatus(input.goalStatus);
+    if (goalStatus === "achieved") {
+      goalAchievedAt = relationship.goalAchievedAt || new Date().toISOString();
+      goalResolution = String(input.goalResolution || "").trim().slice(0, 500);
+      if (!goalResolution) {
+        const error = new Error("确认目标达成时需要提供判断依据");
+        error.status = 400;
+        throw error;
+      }
+    } else {
+      goalAchievedAt = null;
+      goalResolution = "";
+    }
+  }
+
+  updateRelationshipSettingsStatement.run(
+    goal,
+    goalStatus,
+    goalAchievedAt,
+    goalResolution,
+    new Date().toISOString(),
+    id,
+  );
   return getRelationship(id);
 }
 

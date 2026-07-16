@@ -39,8 +39,8 @@ const generateCharacter = () => {
       },
       preferences: { likes: [], dislikes: [] },
       relationshipState: {
-        affection: 50, mood: 0,
-        relationshipStage: 'stranger', distance: 'normal'
+        affection: 10, mood: 0,
+        relationshipStage: 'stranger', distance: 'distant'
       },
       memory: { longTerm: [], relationshipMemory: [] },
       avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${form.basicInfo.name || 'Robot'}`

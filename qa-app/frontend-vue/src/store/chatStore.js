@@ -9,6 +9,7 @@ import {
   renameConversation as renameConversationApi,
   renameRelationship as renameRelationshipApi,
   requestChapterSuggestion as requestChapterSuggestionApi,
+  requestGoalSuggestion as requestGoalSuggestionApi,
   sendMessageStream,
   updateConversation as updateConversationApi,
   updateRelationshipSettings as updateRelationshipSettingsApi,
@@ -43,10 +44,24 @@ const DEFAULT_CHARACTER = {
   avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Robot",
 };
 
+const FRESH_RELATIONSHIP_STATE = {
+  affection: 10,
+  mood: 0,
+  relationshipStage: "stranger",
+  distance: "distant",
+};
+
+const freshRelationshipState = (state = null) => ({
+  ...(cloneValue(state) || {}),
+  ...FRESH_RELATIONSHIP_STATE,
+});
+
 let saveTimer = null;
 let saveSequence = Promise.resolve();
 const MIN_CHAPTER_CHECK_MESSAGES = 8;
 const CHAPTER_CHECK_INTERVAL = 6;
+const MIN_GOAL_CHECK_MESSAGES = 8;
+const GOAL_CHECK_INTERVAL = 6;
 
 const withoutSnapshot = ({ snapshot, checkpoint, relationship, ...metadata }) =>
   metadata;
@@ -66,6 +81,13 @@ export const useChatStore = defineStore("chat", {
     chapterSuggestion: null,
     isChapterSuggestionLoading: false,
     chapterSuggestionCheck: {
+      conversationId: "",
+      lastCheckedMessageCount: 0,
+      dismissedUntilMessageCount: 0,
+    },
+    goalSuggestion: null,
+    isGoalSuggestionLoading: false,
+    goalSuggestionCheck: {
       conversationId: "",
       lastCheckedMessageCount: 0,
       dismissedUntilMessageCount: 0,
@@ -135,6 +157,16 @@ export const useChatStore = defineStore("chat", {
       this.chapterSuggestion = null;
       this.isChapterSuggestionLoading = false;
       this.chapterSuggestionCheck = {
+        conversationId: this.activeConversationId || "",
+        lastCheckedMessageCount: 0,
+        dismissedUntilMessageCount: 0,
+      };
+    },
+
+    _resetGoalSuggestion() {
+      this.goalSuggestion = null;
+      this.isGoalSuggestionLoading = false;
+      this.goalSuggestionCheck = {
         conversationId: this.activeConversationId || "",
         lastCheckedMessageCount: 0,
         dismissedUntilMessageCount: 0,
@@ -243,6 +275,7 @@ export const useChatStore = defineStore("chat", {
       this.streamingContent = "";
       this.stateChangeNotice = null;
       this._resetChapterSuggestion();
+      this._resetGoalSuggestion();
       this._characterDefaults = { relationshipState: null, memory: null };
     },
 
@@ -273,12 +306,12 @@ export const useChatStore = defineStore("chat", {
           ...cloneValue(DEFAULT_CHARACTER.preferences),
           ...(cloneValue(character.preferences) || {}),
         },
-        relationshipState: cloneValue(character.relationshipState),
+        relationshipState: freshRelationshipState(character.relationshipState),
         memory: cloneValue(character.memory),
         avatar: character.avatar || DEFAULT_CHARACTER.avatar,
       };
       this._characterDefaults = {
-        relationshipState: cloneValue(character.relationshipState),
+        relationshipState: freshRelationshipState(character.relationshipState),
         memory: cloneValue(character.memory),
       };
     },
@@ -317,6 +350,7 @@ export const useChatStore = defineStore("chat", {
       this.streamingContent = "";
       this.stateChangeNotice = null;
       this._resetChapterSuggestion();
+      this._resetGoalSuggestion();
       this._upsertConversationMetadata(conversation);
       this._isHydratingConversation = false;
     },
@@ -382,6 +416,9 @@ export const useChatStore = defineStore("chat", {
         this.persistenceError = "请先选择或创建一个角色";
         return null;
       }
+      template.relationshipState = freshRelationshipState(
+        template.relationshipState,
+      );
 
       const characterName = template.basicInfo?.name || "";
       const initialDefaults = {
@@ -477,6 +514,7 @@ export const useChatStore = defineStore("chat", {
         this.isSending ||
         this.isConversationLoading ||
         this.isChapterSuggestionLoading ||
+        this.goalSuggestion ||
         this.chapterSuggestion
       ) {
         return null;
@@ -529,6 +567,71 @@ export const useChatStore = defineStore("chat", {
       this.chapterSuggestionCheck.dismissedUntilMessageCount =
         messageCount + CHAPTER_CHECK_INTERVAL;
       this.chapterSuggestionCheck.lastCheckedMessageCount = messageCount;
+    },
+
+    async checkGoalSuggestion({ alreadyPersisted = false } = {}) {
+      if (
+        !this.isStoryMode ||
+        this.activeRelationship?.goalStatus === "achieved" ||
+        !this.activeRelationshipId ||
+        !this.activeConversationId ||
+        this.isActiveChapterReadOnly ||
+        this.isSending ||
+        this.isConversationLoading ||
+        this.isGoalSuggestionLoading ||
+        this.goalSuggestion
+      ) {
+        return null;
+      }
+
+      const conversationId = this.activeConversationId;
+      const relationshipId = this.activeRelationshipId;
+      const messageCount = this._dialogueMessageCount();
+      if (this.goalSuggestionCheck.conversationId !== conversationId) {
+        this._resetGoalSuggestion();
+      }
+      const check = this.goalSuggestionCheck;
+      if (
+        messageCount < MIN_GOAL_CHECK_MESSAGES ||
+        messageCount - check.lastCheckedMessageCount < GOAL_CHECK_INTERVAL ||
+        messageCount < check.dismissedUntilMessageCount
+      ) {
+        return null;
+      }
+
+      this.isGoalSuggestionLoading = true;
+      try {
+        if (!alreadyPersisted) {
+          const saved = await this.persistActiveConversation({ force: true });
+          if (!saved) return null;
+        }
+        const result = await requestGoalSuggestionApi(relationshipId, {
+          sourceConversationId: conversationId,
+        });
+        if (this.activeConversationId !== conversationId) return null;
+        this.goalSuggestionCheck.lastCheckedMessageCount =
+          Number(result.checkedMessageCount) || messageCount;
+        this.goalSuggestion = result.suggestion
+          ? { ...result.suggestion, conversationId }
+          : null;
+        if (this.goalSuggestion) this.chapterSuggestion = null;
+        return this.goalSuggestion;
+      } catch (error) {
+        console.warn("故事目标判断失败:", error.message);
+        return null;
+      } finally {
+        if (this.activeConversationId === conversationId) {
+          this.isGoalSuggestionLoading = false;
+        }
+      }
+    },
+
+    dismissGoalSuggestion() {
+      const messageCount = this._dialogueMessageCount();
+      this.goalSuggestion = null;
+      this.goalSuggestionCheck.dismissedUntilMessageCount =
+        messageCount + GOAL_CHECK_INTERVAL;
+      this.goalSuggestionCheck.lastCheckedMessageCount = messageCount;
     },
 
     async forkFromConversation(conversationId, relationshipTitle = "") {
@@ -677,10 +780,51 @@ export const useChatStore = defineStore("chat", {
         this.relationships.sort(
           (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
         );
+        if (id === this.activeRelationshipId) this._resetGoalSuggestion();
         this.persistenceError = "";
         return relationship;
       } catch (error) {
         this.persistenceError = `目标保存失败：${error.message}`;
+        throw error;
+      }
+    },
+
+    async confirmGoalAchievement() {
+      if (!this.activeRelationshipId || !this.goalSuggestion) return null;
+      const suggestion = this.goalSuggestion;
+      try {
+        const relationship = await updateRelationshipSettingsApi(
+          this.activeRelationshipId,
+          {
+            goalStatus: "achieved",
+            goalResolution: `${suggestion.reason}；证据：${suggestion.evidence}`,
+          },
+        );
+        const index = this.relationships.findIndex(
+          (item) => item.id === relationship.id,
+        );
+        if (index >= 0) this.relationships[index] = relationship;
+        this._resetGoalSuggestion();
+        this.persistenceError = "";
+        return relationship;
+      } catch (error) {
+        this.persistenceError = `目标状态保存失败：${error.message}`;
+        throw error;
+      }
+    },
+
+    async reopenStoryGoal(id) {
+      try {
+        const relationship = await updateRelationshipSettingsApi(id, {
+          goalStatus: "active",
+        });
+        const index = this.relationships.findIndex((item) => item.id === id);
+        if (index >= 0) this.relationships[index] = relationship;
+        if (id === this.activeRelationshipId) this._resetGoalSuggestion();
+        this.persistenceError = "";
+        return relationship;
+      } catch (error) {
+        this.persistenceError = `目标状态保存失败：${error.message}`;
         throw error;
       }
     },
@@ -854,14 +998,61 @@ export const useChatStore = defineStore("chat", {
       );
     },
 
-    deleteCustomCharacter(characterId) {
-      this.customCharacters = this.customCharacters.filter(
-        (character) => character.id !== characterId,
+    async deleteCustomCharacter(characterId) {
+      if (!characterId || this.isSending) return null;
+      const character = this.customCharacters.find(
+        (item) => item.id === characterId,
       );
-      localStorage.setItem(
-        "customCharacters",
-        JSON.stringify(this.customCharacters),
+      if (!character) return null;
+      const characterName = character.basicInfo?.name || "";
+      const relatedRelationships = this.relationships.filter(
+        (relationship) =>
+          relationship.characterId === characterId ||
+          relationship.characterName === characterName,
       );
+      const relatedIds = new Set(
+        relatedRelationships.map((relationship) => relationship.id),
+      );
+      const currentCharacterId =
+        this.characterSettings?.id || this.characterSettings?.basicInfo?.name;
+      const wasActive =
+        relatedIds.has(this.activeRelationshipId) ||
+        currentCharacterId === characterId ||
+        this.characterSettings?.basicInfo?.name === characterName;
+
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      await saveSequence.catch(() => null);
+      try {
+        for (const relationship of relatedRelationships) {
+          await deleteRelationshipApi(relationship.id);
+        }
+        this.customCharacters = this.customCharacters.filter(
+          (item) => item.id !== characterId,
+        );
+        localStorage.setItem(
+          "customCharacters",
+          JSON.stringify(this.customCharacters),
+        );
+        this._setRelationships(
+          this.relationships.filter(
+            (relationship) => !relatedIds.has(relationship.id),
+          ),
+        );
+        if (wasActive) {
+          this.activeRelationshipId = null;
+          this.activeConversationId = null;
+          this.conversations = [];
+          this._resetSessionState();
+          this.persistenceReady = true;
+        }
+        this.persistenceError = "";
+        return { deletedArchiveCount: relatedRelationships.length };
+      } catch (error) {
+        this._setRelationships(await listRelationshipsApi().catch(() => this.relationships));
+        this.persistenceError = `删除角色失败：${error.message}`;
+        throw error;
+      }
     },
 
     async sendMessage(question) {
@@ -876,6 +1067,7 @@ export const useChatStore = defineStore("chat", {
       await this.persistActiveConversation({ force: true });
 
       if (this.chapterSuggestion) this.dismissChapterSuggestion();
+      if (this.goalSuggestion) this.dismissGoalSuggestion();
 
       this.addMessage("user", question);
       this.isSending = true;
@@ -902,6 +1094,7 @@ export const useChatStore = defineStore("chat", {
         chatContext: {
           mode: this.activeRelationship?.mode || "free",
           goal: this.activeRelationship?.goal || "",
+          goalStatus: this.activeRelationship?.goalStatus || "active",
           chapterNumber: this.activeConversation?.chapterNumber || 1,
           chapterTitle: this.activeConversation?.title || "",
         },
@@ -960,7 +1153,10 @@ export const useChatStore = defineStore("chat", {
         this.streamingContent = "";
         const saved = await this.persistActiveConversation({ force: true });
         if (responseCompleted && saved) {
-          await this.checkChapterSuggestion({ alreadyPersisted: true });
+          await this.checkGoalSuggestion({ alreadyPersisted: true });
+          if (!this.goalSuggestion) {
+            await this.checkChapterSuggestion({ alreadyPersisted: true });
+          }
         }
       }
     },

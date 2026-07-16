@@ -70,7 +70,7 @@ Android 与 Web 共用 Vue 界面和聊天状态，但通过运行平台选择�
 - Android 不需要部署本项目后端。聊天存档保存在手机 SQLite，API Key 保存在 Android KeyStore 支持的安全存储中，模型请求从手机直连用户填写的 OpenAI 兼容接口。
 - 两端默认使用各自独立的存档，不会互相覆盖；Android 仍需联网访问所配置的模型服务。
 
-首次打开 Android 应用时，在“模型 API 设置”中填写 API 地址、API Key 和模型名称。
+首次打开 Android 应用时，在“模型 API 设置”中填写 API 地址和 API Key。Android 版固定使用 `DeepSeek-V4-Flash`，无需填写模型名称。
 
 本地构建需要 JDK 21、Android SDK Platform 36 和 Android Build Tools：
 

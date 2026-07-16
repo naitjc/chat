@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, inject, computed, defineAsyncComponent, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useChatStore } from '../store/chatStore'
 import {
   Brush,
@@ -11,11 +11,13 @@ import {
   EditPen,
   MoreFilled,
   PictureFilled,
+  RefreshLeft,
   Search,
   Setting,
 } from '@element-plus/icons-vue'
 import { readOptimizedImage } from '../utils/imageFile'
 import { isNativeApp } from '../services/platform'
+import { FIXED_NATIVE_MODEL } from '../services/nativeModelConfig'
 
 const nativeSettingsService = () => import('../services/nativeModelSettings')
 const nativeLlmService = () => import('../services/nativeLlmRuntime')
@@ -45,7 +47,7 @@ const showMoreMenu = ref(false)
 const nativeSettingsOpen = ref(false)
 const isTestingNativeModel = ref(false)
 const isSavingNativeModel = ref(false)
-const nativeModelSettings = reactive({ apiURL: '', apiKey: '', model: '' })
+const nativeModelSettings = reactive({ apiURL: '', apiKey: '' })
 
 const themes = [
   { id: 'default', label: '✨ 默认', color: '#7c83fd' },
@@ -108,9 +110,60 @@ const handleBackgroundChange = async (e) => {
   e.target.value = ''
 }
 
-const deleteCustomChar = (charId) => {
-  chatStore.deleteCustomCharacter(charId)
-  if (selectedCharacterId.value === charId) selectedCharacterId.value = ''
+const resetChatBackground = async () => {
+  if (!chatStore.chatBackground) return
+  try {
+    await ElMessageBox.confirm(
+      '将移除当前聊天存档的自定义背景，恢复应用默认背景。',
+      '恢复默认背景',
+      {
+        confirmButtonText: '恢复默认',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    emit('update-background', null)
+    showMoreMenu.value = false
+    ElMessage.success('已恢复默认聊天背景')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || '恢复背景失败')
+    }
+  }
+}
+
+const deleteCustomChar = async (character) => {
+  const characterName = character.basicInfo?.name || '未命名角色'
+  const archiveCount = chatStore.relationships.filter(relationship => (
+    relationship.characterId === character.id
+    || relationship.characterName === characterName
+  )).length
+  const archiveText = archiveCount
+    ? `，以及与该角色关联的 ${archiveCount} 个聊天存档和其中全部章节`
+    : ''
+  try {
+    await ElMessageBox.confirm(
+      `将永久删除角色“${characterName}”${archiveText}。此操作无法恢复。`,
+      '确认删除角色',
+      {
+        confirmButtonText: '删除角色',
+        cancelButtonText: '取消',
+        type: 'warning',
+        distinguishCancelAndClose: true,
+      },
+    )
+  } catch {
+    return
+  }
+
+  try {
+    await chatStore.deleteCustomCharacter(character.id)
+    if (selectedCharacterId.value === character.id) selectedCharacterId.value = ''
+    showMoreMenu.value = false
+    ElMessage.success(archiveCount ? '角色和关联存档已删除' : '角色已删除')
+  } catch (error) {
+    ElMessage.error(error.message)
+  }
 }
 
 const exportHistory = () => {
@@ -210,7 +263,8 @@ const displayName = computed(() => {
               size="small"
               type="danger"
               text
-              @click.stop="deleteCustomChar(c.id)"
+              :aria-label="`删除角色 ${c.basicInfo.name}`"
+              @click.stop="deleteCustomChar(c)"
               style="padding: 0 4px; margin-left: 8px; font-size: 12px;"
             >✕</el-button>
           </el-option>
@@ -293,6 +347,23 @@ const displayName = computed(() => {
                 <el-option v-for="c in chatStore.customCharacters" :key="c.id" :value="c.id" :label="c.basicInfo.name" />
               </el-option-group>
             </el-select>
+            <div v-if="chatStore.customCharacters.length" class="mobile-character-list">
+              <div class="mobile-character-list-title">管理我的角色</div>
+              <div
+                v-for="c in chatStore.customCharacters"
+                :key="`manage-${c.id}`"
+                class="mobile-character-row"
+              >
+                <span>{{ c.basicInfo.name }}</span>
+                <el-button
+                  type="danger"
+                  text
+                  size="small"
+                  :aria-label="`删除角色 ${c.basicInfo.name}`"
+                  @click="deleteCustomChar(c)"
+                >删除</el-button>
+              </div>
+            </div>
             <div class="menu-actions-grid compact-actions single-action">
               <el-button class="menu-action" @click="openWizard">
                 <el-icon><EditPen /></el-icon>
@@ -323,7 +394,15 @@ const displayName = computed(() => {
               </el-button>
               <el-button class="menu-action" @click="triggerBackgroundUpload">
                 <el-icon><PictureFilled /></el-icon>
-                <span>聊天背景</span>
+                <span>{{ chatStore.chatBackground ? '更换背景' : '聊天背景' }}</span>
+              </el-button>
+              <el-button
+                class="menu-action background-reset-action"
+                :disabled="!chatStore.chatBackground"
+                @click="resetChatBackground"
+              >
+                <el-icon><RefreshLeft /></el-icon>
+                <span>恢复默认背景</span>
               </el-button>
             </div>
           </section>
@@ -380,9 +459,10 @@ const displayName = computed(() => {
           placeholder="输入你自己的 API Key"
         />
       </el-form-item>
-      <el-form-item label="模型名称">
-        <el-input v-model="nativeModelSettings.model" placeholder="例如 GLM-5" />
-      </el-form-item>
+      <div class="fixed-model-row">
+        <span>固定模型</span>
+        <strong>{{ FIXED_NATIVE_MODEL }}</strong>
+      </div>
     </el-form>
     <template #footer>
       <el-button :loading="isTestingNativeModel" @click="testNativeSettings">
@@ -497,6 +577,35 @@ const displayName = computed(() => {
   margin-bottom: 8px;
 }
 
+.mobile-character-list {
+  margin: 2px 0 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-glass);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-glass) 88%, transparent);
+}
+
+.mobile-character-list-title {
+  margin-bottom: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.mobile-character-row {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.mobile-character-row :deep(.el-button) {
+  margin: 0;
+  padding: 4px;
+}
+
 .menu-actions-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -530,6 +639,10 @@ const displayName = computed(() => {
   background: color-mix(in srgb, var(--primary) 9%, transparent);
 }
 
+.background-reset-action {
+  grid-column: 1 / -1;
+}
+
 .menu-action-emoji {
   width: 1em;
   text-align: center;
@@ -543,6 +656,25 @@ const displayName = computed(() => {
   border-radius: 10px;
   font-size: 12px;
   line-height: 1.6;
+}
+
+.fixed-model-row {
+  margin-top: 2px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  background: var(--input-bg);
+  border: 1px solid var(--border-glass);
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.fixed-model-row strong {
+  color: var(--text-accent);
+  font-size: 13px;
 }
 
 .danger-action,

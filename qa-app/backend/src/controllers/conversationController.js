@@ -1,6 +1,7 @@
 const conversationStore = require("../services/conversationStore");
 const { summarizeChapter } = require("../services/historyManager");
 const { adviseNextChapter } = require("../services/chapterAdvisor");
+const { adviseGoalAchievement } = require("../services/goalAdvisor");
 
 function handleError(error, res, next) {
   if (error.code?.startsWith("SQLITE_CONSTRAINT")) {
@@ -209,6 +210,45 @@ async function suggestNextChapter(req, res, next) {
   }
 }
 
+async function suggestGoalAchievement(req, res, next) {
+  try {
+    const source = conversationStore.getConversation(
+      req.body?.sourceConversationId,
+    );
+    if (!source) {
+      return res.status(404).json({ error: { message: "源章节不存在" } });
+    }
+    if (source.relationshipId !== req.params.id) {
+      return res.status(400).json({
+        error: { message: "源章节不属于当前关系" },
+      });
+    }
+    if (source.status !== "open") {
+      return res.status(409).json({
+        error: { message: "只有当前章节可以判断故事目标" },
+      });
+    }
+
+    const relationship = conversationStore.getRelationship(req.params.id);
+    if (relationship?.mode !== "story") {
+      return res.status(409).json({
+        error: { message: "自由模式不使用故事目标" },
+      });
+    }
+    if (relationship.goalStatus === "achieved") {
+      return res.json({ checkedMessageCount: 0, suggestion: null });
+    }
+
+    const result = await adviseGoalAchievement({
+      history: source.snapshot?.apiHistory,
+      goal: relationship.goal,
+    });
+    res.json(result);
+  } catch (error) {
+    handleError(error, res, next);
+  }
+}
+
 async function fork(req, res, next) {
   try {
     const source = conversationStore.getConversation(req.params.id);
@@ -262,6 +302,7 @@ module.exports = {
   renameRelationship,
   updateRelationshipSettings,
   removeRelationship,
+  suggestGoalAchievement,
   suggestNextChapter,
   createNextChapter,
   fork,

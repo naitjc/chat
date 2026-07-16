@@ -20,6 +20,11 @@ router.patch(
 );
 router.delete("/relationships/:id", conversationController.removeRelationship);
 router.post(
+  "/relationships/:id/goal-suggestion",
+  rateLimiter,
+  conversationController.suggestGoalAchievement,
+);
+router.post(
   "/relationships/:id/chapter-suggestion",
   rateLimiter,
   conversationController.suggestNextChapter,

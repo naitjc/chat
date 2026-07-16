@@ -9,6 +9,7 @@ import MessageInput from './chat/MessageInput.vue'
 const chatStore = useChatStore()
 const chatBoxRef = ref(null)
 const isAcceptingSuggestion = ref(false)
+const isConfirmingGoal = ref(false)
 
 const scrollToBottom = async () => {
   await nextTick()
@@ -101,6 +102,24 @@ const acceptChapterSuggestion = async () => {
     isAcceptingSuggestion.value = false
   }
 }
+
+const keepGoalActive = () => {
+  chatStore.dismissGoalSuggestion()
+  ElMessage.info('目标保持进行中，之后会结合新剧情再次判断')
+}
+
+const confirmGoalAchievement = async () => {
+  if (!chatStore.goalSuggestion) return
+  isConfirmingGoal.value = true
+  try {
+    await chatStore.confirmGoalAchievement()
+    ElMessage.success('最终目标已标记为达成，故事仍可继续')
+  } catch (error) {
+    ElMessage.error(error.message || '目标状态保存失败')
+  } finally {
+    isConfirmingGoal.value = false
+  }
+}
 </script>
 
 <template>
@@ -141,6 +160,7 @@ const acceptChapterSuggestion = async () => {
       <span class="mode-context-copy">
         <template v-if="chatStore.isStoryMode">
           最终目标：{{ chatStore.activeRelationship.goal || '尚未设置' }}
+          · {{ chatStore.activeRelationship.goalStatus === 'achieved' ? '已达成' : '进行中' }}
         </template>
         <template v-else>没有主线和章节，想聊什么都可以</template>
       </span>
@@ -205,7 +225,32 @@ const acceptChapterSuggestion = async () => {
 
     <Transition name="chapter-suggestion">
       <aside
-        v-if="chatStore.chapterSuggestion"
+        v-if="chatStore.goalSuggestion"
+        class="chapter-suggestion-card goal-suggestion-card"
+        aria-live="polite"
+      >
+        <span class="chapter-suggestion-icon">🎯</span>
+        <div class="chapter-suggestion-copy">
+          <strong>最终目标可能已经达成</strong>
+          <span>{{ chatStore.goalSuggestion.reason }}</span>
+          <small>剧情证据：{{ chatStore.goalSuggestion.evidence }}</small>
+        </div>
+        <div class="chapter-suggestion-actions">
+          <el-button size="small" text @click="keepGoalActive">
+            尚未达成
+          </el-button>
+          <el-button
+            size="small"
+            type="success"
+            :loading="isConfirmingGoal"
+            @click="confirmGoalAchievement"
+          >
+            确认已达成
+          </el-button>
+        </div>
+      </aside>
+      <aside
+        v-else-if="chatStore.chapterSuggestion"
         class="chapter-suggestion-card"
         aria-live="polite"
       >
@@ -301,6 +346,11 @@ const acceptChapterSuggestion = async () => {
   border: 1px solid color-mix(in srgb, #8b5cf6 28%, var(--border-glass));
   border-radius: 14px;
   box-shadow: var(--shadow-sm);
+}
+
+.goal-suggestion-card {
+  background: color-mix(in srgb, #22c55e 10%, var(--bg-glass));
+  border-color: color-mix(in srgb, #22c55e 30%, var(--border-glass));
 }
 
 .chapter-suggestion-icon {

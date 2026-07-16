@@ -8,10 +8,10 @@
       "userNickname": "勇太"
     },
     "relationshipState": {
-      "affection": 80,
-      "mood": 10,
-      "relationshipStage": "close",
-      "distance": "close"
+      "affection": 10,
+      "mood": 0,
+      "relationshipStage": "stranger",
+      "distance": "distant"
     },
     "memory": {
       "longTerm": [
@@ -81,10 +81,10 @@
       "userNickname": "夫人"
     },
     "relationshipState": {
-      "affection": 85,
-      "mood": 5,
-      "relationshipStage": "intimate",
-      "distance": "close"
+      "affection": 10,
+      "mood": 0,
+      "relationshipStage": "stranger",
+      "distance": "distant"
     },
     "memory": {
       "longTerm": [

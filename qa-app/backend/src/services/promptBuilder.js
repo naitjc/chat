@@ -18,17 +18,21 @@ function buildSystemPrompt(settings, chatContext = {}) {
 
     if (chatContext.mode === 'story') {
         const goal = String(chatContext.goal || '').trim();
+        const goalStatus = chatContext.goalStatus === 'achieved'
+            ? '用户已确认达成'
+            : '进行中';
         const chapterNumber = Number(chatContext.chapterNumber || 1);
         const chapterTitle = String(chatContext.chapterTitle || `第 ${chapterNumber} 章`).trim();
         systemPrompt += `\n### 当前模式：故事模式
 - **最终目标**: ${goal || '尚未设置'}
+- **目标状态**: ${goalStatus}
 - **当前章节**: 第 ${chapterNumber} 章「${chapterTitle}」
 
 **推进边界**:
 1. 用户决定主角的行动、故事推进速度和何时进入下一章。
 2. 你负责依据用户已经做出的行动，自然呈现场景、角色反应与合理后果。
-3. 不得替用户做关键决定，不得擅自跳章、推进到结局或宣布最终目标已经完成。
-4. 最终目标用于保持长期方向，不要求每次回复都强行推进。\n`;
+3. 不得替用户做关键决定，不得擅自跳章、推进到结局或宣告目标状态。
+4. 最终目标用于保持长期方向，不要求每次回复都强行推进；即使目标已达成，也不代表对话必须结束。\n`;
     } else {
         systemPrompt += `\n### 当前模式：自由模式
 这里没有主线、章节或预设结局。顺着用户当下的话题自然互动，不要自行设定任务、制造剧情目标或宣布进入新章节。\n`;

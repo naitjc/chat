@@ -154,6 +154,32 @@ export async function requestChapterSuggestion(relationshipId, payload) {
   );
 }
 
+export async function requestGoalSuggestion(relationshipId, payload) {
+  if (isNativeApp) {
+    const store = await nativeStore();
+    const source = await store.getConversation(payload.sourceConversationId);
+    if (!source) throw new Error("源章节不存在");
+    const relationship = await store.getRelationship(relationshipId);
+    if (
+      relationship?.mode !== "story"
+      || relationship.goalStatus === "achieved"
+    ) {
+      return { checkedMessageCount: 0, suggestion: null };
+    }
+    return (await nativeRuntime()).adviseNativeGoal({
+      history: source.snapshot?.apiHistory || [],
+      goal: relationship.goal,
+    });
+  }
+  return request(
+    `/relationships/${encodeURIComponent(relationshipId)}/goal-suggestion`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
 export async function forkConversation(id, payload = {}) {
   if (isNativeApp) {
     const store = await nativeStore();

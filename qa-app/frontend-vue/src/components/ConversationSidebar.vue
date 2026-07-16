@@ -198,6 +198,26 @@ const editGoal = async (relationship) => {
   }
 }
 
+const reopenGoal = async (relationship) => {
+  try {
+    await ElMessageBox.confirm(
+      '目标内容会保留，状态将改回“进行中”，模型之后可以再次给出达成建议。',
+      '重新开启最终目标',
+      {
+        confirmButtonText: '重新开启',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    await chatStore.reopenStoryGoal(relationship.id)
+    ElMessage.success('最终目标已重新开启')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || '目标状态保存失败')
+    }
+  }
+}
+
 const renameChapter = async (chapter) => {
   try {
     const { value } = await ElMessageBox.prompt('输入新的章节名称', '重命名章节', {
@@ -390,18 +410,41 @@ const handleChapterCommand = (command, relationship, chapter) => {
           <template v-else>
             <div class="goal-card" :class="{ empty: !relationship.goal }">
               <div class="goal-card-header">
-                <span>🎯 最终目标</span>
-                <el-button
-                  :icon="EditPen"
-                  text
-                  size="small"
-                  @click="editGoal(relationship)"
-                >
-                  {{ relationship.goal ? '修改' : '设置' }}
-                </el-button>
+                <span class="goal-card-title">
+                  🎯 最终目标
+                  <span
+                    class="goal-status"
+                    :class="{ achieved: relationship.goalStatus === 'achieved' }"
+                  >
+                    {{ relationship.goalStatus === 'achieved' ? '已达成' : '进行中' }}
+                  </span>
+                </span>
+                <span class="goal-card-actions">
+                  <el-button
+                    :icon="EditPen"
+                    text
+                    size="small"
+                    @click="editGoal(relationship)"
+                  >
+                    {{ relationship.goal ? '修改' : '设置' }}
+                  </el-button>
+                  <el-button
+                    v-if="relationship.goalStatus === 'achieved'"
+                    text
+                    size="small"
+                    @click="reopenGoal(relationship)"
+                  >重新开启</el-button>
+                </span>
               </div>
               <p>{{ relationship.goal || '这是旧故事存档，请先补充最终目标。' }}</p>
-              <small>目标只保持方向，故事怎么走由你在聊天中决定。</small>
+              <p
+                v-if="relationship.goalStatus === 'achieved' && relationship.goalResolution"
+                class="goal-resolution"
+              >确认依据：{{ relationship.goalResolution }}</p>
+              <small v-if="relationship.goalStatus === 'achieved'">
+                已由你确认达成，但故事和聊天仍然可以继续。
+              </small>
+              <small v-else>模型只会给出达成建议，最终由你确认。</small>
             </div>
 
             <div class="chapter-heading">
@@ -756,6 +799,25 @@ const handleChapterCommand = (command, relationship, chapter) => {
   font-size: 10px;
   font-weight: 750;
 }
+.goal-card-title,
+.goal-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.goal-card-actions { flex-shrink: 0; }
+.goal-status {
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.1);
+  font-size: 8px;
+  font-weight: 700;
+}
+.goal-status.achieved {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.12);
+}
 .goal-card-header :deep(.el-button) {
   height: 22px;
   margin: 0;
@@ -768,6 +830,12 @@ const handleChapterCommand = (command, relationship, chapter) => {
   color: var(--text-primary);
   font-size: 11px;
   line-height: 1.45;
+}
+.goal-card .goal-resolution {
+  padding-top: 5px;
+  border-top: 1px solid rgba(139, 92, 246, 0.13);
+  color: var(--text-secondary);
+  font-size: 9px;
 }
 .goal-card small {
   display: block;
