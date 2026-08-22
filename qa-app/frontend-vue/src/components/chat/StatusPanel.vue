@@ -14,10 +14,10 @@ const showDetails = ref(false)
 const moodConfig = computed(() => {
   if (!state.value) return { text: '未知', emoji: '😶', cls: 'neutral' }
   const m = state.value.mood
-  if (m > 30)  return { text: '非常开心', emoji: '😄', cls: 'great' }
-  if (m > 10)  return { text: '心情不错', emoji: '😊', cls: 'good' }
-  if (m < -30) return { text: '极度低落', emoji: '😢', cls: 'terrible' }
-  if (m < -10) return { text: '有些沉郁', emoji: '😔', cls: 'bad' }
+  if (m >= 7)  return { text: '非常开心', emoji: '😄', cls: 'great' }
+  if (m >= 3)  return { text: '心情不错', emoji: '😊', cls: 'good' }
+  if (m <= -7) return { text: '明显低落', emoji: '😢', cls: 'terrible' }
+  if (m <= -3) return { text: '有些沉郁', emoji: '😔', cls: 'bad' }
   return { text: '平静', emoji: '😌', cls: 'neutral' }
 })
 
@@ -83,7 +83,7 @@ const affectionColor = computed(() => {
           <div class="item-label">
             <span class="label-text">🌤 情绪值</span>
             <span class="label-val" :class="state.mood < 0 ? 'neg' : 'pos'">
-              {{ state.mood > 0 ? '+' : '' }}{{ state.mood }}<span class="unit">/50</span>
+              {{ state.mood > 0 ? '+' : '' }}{{ state.mood }}<span class="unit">/10</span>
             </span>
           </div>
           <div class="progress-wrap">
@@ -91,8 +91,8 @@ const affectionColor = computed(() => {
             <div
               class="progress-bar mood-bar"
               :style="{
-                width: Math.abs(state.mood) + '%',
-                left: state.mood >= 0 ? '50%' : (50 - Math.abs(state.mood)) + '%',
+                width: (Math.abs(state.mood) * 5) + '%',
+                left: state.mood >= 0 ? '50%' : (50 - Math.abs(state.mood) * 5) + '%',
                 background: state.mood >= 0 ? 'linear-gradient(90deg, #34d399, #10b981)' : 'linear-gradient(90deg, #f87171, #ef4444)'
               }"
             ></div>

@@ -313,5 +313,9 @@ const copyCharacterSettings = () => {
 @media (max-width: 1000px) { .settings-card { width: 240px; } }
 @media (max-width: 800px) {
   .settings-card { width: 100% !important; height: 100% !important; }
+  .form-row { flex-direction: column; gap: 0; }
+  :deep(.el-collapse-item__header) { min-height: 44px; height: auto; }
+  :deep(.el-input__wrapper) { min-height: 42px; }
+  :deep(.el-textarea__inner) { min-height: 84px !important; }
 }
 </style>

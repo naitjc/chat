@@ -54,17 +54,123 @@ const nativeModelSettings = reactive({ apiURL: '', apiKey: '' })
 const guideOpen = ref(false)
 const activeGuideSection = ref(0)
 const guideSections = [
-  { title: '开始使用', items: ['顶部选择预设角色或自定义角色。', '点击聊天存档名称打开聊天；角色设定面板会显示当前角色和关系状态。', '没有合适角色时，创建角色并填写姓名、性格、语调、身份和背景。'] },
-  { title: '创建聊天存档', items: ['自由模式没有主线和章节，适合日常聊天；创建时可设置存档名称和初始好感度。', '故事模式 Beta 需要最终目标，从好感度 0 开始；用户决定行动、节奏和是否切章。', '每个存档都有独立的聊天记录、关系状态、记忆和背景。'] },
-  { title: '打开与收起存档', items: ['第一次点击存档会打开角色设定和聊天面板。', '再次点击当前存档会收起两个面板，但不会删除数据。', '删除存档会删除对应记录且无法恢复。'] },
-  { title: '好感度与情绪', items: ['好感度影响称呼、亲疏距离、主动性和亲密程度。', '情绪影响语气、表达长度、玩笑程度和回应方式。', '关系阶段：0～24 素昧平生；25～60 泛泛之交；61～80 志同道合；81～90 亲密无间；91～100 相濡以沫。', '新建存档时情绪会在 -10～10 之间随机生成，并固定保存在存档中。'] },
-  { title: '故事模式功能', items: ['故事状态面板显示最终目标、目标状态、当前章节、章节回顾和已确认事件。', '模型可以建议切章，但不会替用户做关键决定。', '过去章节为只读，可以从过去章节创建分支故事。'] },
-  { title: '确认关键事件', items: ['在故事状态面板点击“确认关键事件”。', '填写明确发生且希望长期保留的事实。', '保存后会成为故事记忆，供后续章节继承。', '普通闲聊不会自动写入长期记忆。'] },
-  { title: '上下文容量与继承', items: ['聊天面板右上角显示估算上下文占用量。', '达到约 70%、85% 和 95% 时会分级提醒。', '点击“开启并继承”会保留角色设定、关系值、长期记忆、事件、目标和前情提要。', '百分比是文本长度估算值，不等同于服务商精确 token 计费值。'] },
-  { title: '角色设定与界面', items: ['角色设定支持基本信息、性格、表达习惯、行为准则、背景、喜好和厌恶。', '顶部更多菜单支持更换头像、聊天背景和主题。', '消息区域支持搜索、收藏和 Markdown 显示。'] },
-  { title: '数据与隐私', items: ['Web 端使用后端 SQLite，Android 端使用手机 SQLite。', 'Web 和 Android 存档不会自动同步。', '删除存档不可恢复。', '模型请求会发送到当前配置的兼容接口，请勿填写敏感信息。'] },
-  { title: '常见问题', items: ['状态通过语气、称呼、主动性和亲疏距离体现，不会机械复述数字。', '存档保存自己的角色快照；新建存档会使用最新角色设定。', 'Web 和 Android 使用独立本地存储，不会自动同步。'] },
+  {
+    title: '第一次开始聊天',
+    summary: '从选择角色到发出第一条消息，通常只需要一分钟。',
+    steps: [
+      { title: '选择角色', detail: '手机端点击右上角“更多”，在“角色”区域选择预设角色；也可以点击“创建角色”制作自己的角色。' },
+      { title: '打开聊天存档', detail: '点击顶部的存档按钮。如果还没有存档，点击“新建”，再选择自由模式或故事模式。' },
+      { title: '进入聊天', detail: '点击存档名称后抽屉会自动关闭，底部输入框随即可以使用。输入内容后点击“发送”。' },
+      { title: '以后继续聊', detail: '应用会自动保存消息和关系状态。下次打开时，重新进入同一个存档即可接着聊。' },
+    ],
+    tip: '如果输入框是灰色，通常是因为还没有打开存档，或者正在查看只读的过去章节。',
+  },
+  {
+    title: '自由模式与故事模式',
+    summary: '创建前先选对模式；存档创建后不会中途改变模式。',
+    steps: [
+      { title: '自由模式', detail: '适合日常陪伴、随意聊天和长期互动。没有最终目标，也不划分章节；创建时可以设置初始好感度。' },
+      { title: '故事模式 Beta', detail: '适合有明确方向的互动故事。创建时必须填写最终目标，新故事从好感度 0 开始。' },
+      { title: '如何选择', detail: '只是想聊天就选自由模式；希望围绕“找到失落星图”“一起完成旅行”等目标推进，就选故事模式。' },
+      { title: '不同存档互不影响', detail: '每个存档都有自己的消息、关系状态、记忆、背景和角色快照，可以为同一角色创建多条独立故事线。' },
+    ],
+    tip: '不确定时先用自由模式。故事模式更适合愿意主动推动剧情的用户。',
+  },
+  {
+    title: '手机界面怎么用',
+    summary: '手机端把功能分成聊天主界面、存档抽屉、角色设置和更多菜单。',
+    steps: [
+      { title: '存档', detail: '顶部文件夹按钮用于打开存档与章节。选择内容后会自动返回聊天，不需要手动关闭。' },
+      { title: '角色设置', detail: '顶部齿轮按钮用于查看和修改当前存档中的角色信息。必须先打开一个存档才能使用。' },
+      { title: '更多', detail: '三点菜单包含角色切换、创建角色、教程、消息搜索、头像、主题、背景、导出和 Android 模型设置。' },
+      { title: '聊天输入区', detail: '文本框单独占一行；表情和模型参数位于下方工具区，发送按钮位于右侧，避免误触。' },
+    ],
+    tip: '抽屉顶部都有“返回聊天”按钮；也可以点击抽屉外的暗色区域关闭。',
+  },
+  {
+    title: '好感度、情绪与关系',
+    summary: '这些状态会改变角色的语气和亲疏，但不会替你决定剧情。',
+    steps: [
+      { title: '好感度', detail: '好感度越高，角色通常越信任、主动和亲近；较低时会更谨慎、有距离感。范围是 0～100。' },
+      { title: '关系阶段', detail: '0～24 素昧平生，25～60 泛泛之交，61～80 志同道合，81～90 亲密无间，91～100 相濡以沫。' },
+      { title: '情绪', detail: '情绪影响当前回复的轻快、耐心、克制或低落程度。新建存档时会生成初始情绪，之后随互动变化。' },
+      { title: '在哪里查看', detail: '打开角色设置，在状态卡片中点击“查看状态”。数值保存在当前存档中，不会影响其他存档。' },
+    ],
+    tip: '角色不会直接朗读数值；请从称呼、语气、主动性和回应方式判断变化。',
+  },
+  {
+    title: '故事、章节与分支',
+    summary: '故事由你推动，系统只负责保存结构和提出建议。',
+    steps: [
+      { title: '查看故事状态', detail: '聊天顶部显示目标和上下文；点击“展开故事信息”可查看章节回顾、章节进度和已确认事件。' },
+      { title: '进入下一章', detail: '模型可能在自然收束点给出建议，你也可以在存档抽屉中手动点击“结束本章，进入下一章”。' },
+      { title: '过去章节', detail: '结束后的章节是只读的，不能继续发送消息，避免历史内容被意外改写。' },
+      { title: '创建分支', detail: '打开过去章节并选择“从这里创建分支故事”，即可继承当时的角色、关系、记忆和目标，之后独立发展。' },
+    ],
+    tip: '模型的切章和目标达成判断都只是建议，只有你确认后才会改变故事状态。',
+  },
+  {
+    title: '关键事件与记忆',
+    summary: '只把真正重要、已经发生的事实写入长期故事记忆。',
+    steps: [
+      { title: '打开入口', detail: '故事模式中展开故事信息，点击“确认关键事件”。' },
+      { title: '写清事实', detail: '写成明确结果，例如“我们约定下周一起调查旧车站”，不要只写“车站”或尚未发生的计划。' },
+      { title: '保存后的作用', detail: '该事件会出现在故事状态中，并在后续章节或继承对话中继续提供给角色。' },
+      { title: '为什么不自动记忆', detail: '普通闲聊不会自动成为长期事实，这样可以避免误解、玩笑或模型猜测污染后续剧情。' },
+    ],
+    tip: '少而准确的关键事件，比大量零碎记录更能保持角色和故事一致。',
+  },
+  {
+    title: '上下文与继承对话',
+    summary: '对话很长时，用继承功能保留重点并释放可用上下文。',
+    steps: [
+      { title: '查看占用', detail: '聊天顶部显示估算的上下文百分比。它根据文本长度估算，不等同于服务商的精确 token 账单。' },
+      { title: '何时处理', detail: '大约 70%、85% 和 95% 时会分级提醒；接近上限后，新消息可能无法继续发送。' },
+      { title: '开启并继承', detail: '点击提醒中的“开启并继承”，系统会创建新存档并带上角色设定、关系、长期记忆、故事目标和最近对话摘要。' },
+      { title: '旧存档仍保留', detail: '继承不会删除原存档。你可以回到旧存档查看完整历史，也可以继续使用新存档聊天。' },
+    ],
+    tip: '看到橙色提醒时就可以继承，不必等到红色上限。',
+  },
+  {
+    title: '角色、头像与外观',
+    summary: '角色设定决定“是谁在说话”，外观设置只改变显示效果。',
+    steps: [
+      { title: '创建角色', detail: '在“更多”菜单点击“创建角色”，填写姓名、身份、性格、语调、行为准则和背景；信息越具体，表现通常越稳定。' },
+      { title: '修改当前角色', detail: '先打开存档，再进入角色设置。修改会保存到当前存档的角色快照，不会自动覆盖其他旧存档。' },
+      { title: '头像和聊天背景', detail: '在“更多”菜单中更换我的头像或聊天背景；也可以直接点击消息旁的头像进行更换。' },
+      { title: '主题和特效', detail: '在“更多”的外观区域切换主题、背景和雪花特效。关闭特效可以减少低性能手机的视觉负担。' },
+    ],
+    tip: '修改角色模板后，新建存档会使用最新设定；已有存档仍保留自己的快照。',
+  },
+  {
+    title: 'Android 模型 API 设置',
+    summary: 'Android 原生版需要先配置自己的兼容接口，Web 版则使用服务器配置。',
+    steps: [
+      { title: '打开设置', detail: 'Android 应用中点击“更多”→“模型 API 设置”。如果看不到该入口，说明当前运行的是 Web 版。' },
+      { title: '填写地址', detail: '输入服务商提供的 OpenAI 兼容 API 地址，通常以 /v1 结尾；不要把聊天网页地址误当成 API 地址。' },
+      { title: '填写密钥并测试', detail: '输入自己的 API Key，先点击“测试连接”；测试成功后再保存。密钥保存在手机系统安全存储中。' },
+      { title: '连接失败怎么办', detail: '检查网络、地址、密钥余额和服务商是否允许当前模型。部分服务商还会限制地区或并发请求。' },
+    ],
+    tip: '不要把 API Key 发到聊天消息里，也不要分享包含密钥的截图。',
+  },
+  {
+    title: '数据、导出与排错',
+    summary: '了解数据保存位置，可以避免误删和误以为多端会自动同步。',
+    steps: [
+      { title: '数据保存位置', detail: 'Android 存档保存在手机本地 SQLite；Web 存档保存在 Web 后端。两端目前不会自动同步。' },
+      { title: '导出对话', detail: '打开“更多”→“导出对话”，可把当前聊天记录保存为文本文件。导出前请先进入目标存档。' },
+      { title: '删除要谨慎', detail: '删除角色可能同时删除关联存档；删除存档会移除其中的消息、章节和状态，目前无法恢复。' },
+      { title: '功能点不了', detail: '先确认已选择角色并打开存档；过去章节只能查看；发送中或加载中时部分按钮会暂时禁用。' },
+      { title: '界面异常', detail: '尝试关闭并重新打开应用。若仍有问题，请记录手机型号、系统版本、操作步骤和错误提示，便于定位。' },
+    ],
+    tip: '重要聊天建议定期导出。卸载 Android 应用前也请先备份需要保留的内容。',
+  },
 ]
+
+const openGuide = () => {
+  showMoreMenu.value = false
+  guideOpen.value = true
+}
 
 const themes = [
   { id: 'default', label: '✨ 默认', color: '#7c83fd' },
@@ -337,7 +443,7 @@ const displayName = computed(() => {
     </div>
 
     <div class="header-right">
-      <el-tooltip content="使用教程" placement="bottom">
+      <el-tooltip v-if="!isMobile" content="使用教程" placement="bottom">
         <el-button
           :icon="Reading"
           class="guide-button"
@@ -361,6 +467,7 @@ const displayName = computed(() => {
           :icon="Setting"
           class="icon-btn"
           :class="{ active: settingsOpen }"
+          :disabled="!chatStore.activeConversationId"
           aria-label="角色设置"
           @click="emit('toggle-settings')"
         />
@@ -372,7 +479,7 @@ const displayName = computed(() => {
         </el-tooltip>
       </template>
 
-      <el-tooltip content="搜索消息" placement="bottom">
+      <el-tooltip v-if="!isMobile" content="搜索消息" placement="bottom">
         <el-button
           :icon="Search"
           class="icon-btn"
@@ -399,6 +506,20 @@ const displayName = computed(() => {
         </template>
 
         <div class="more-menu">
+          <section v-if="isMobile" class="menu-section">
+            <div class="menu-section-title">帮助与查找</div>
+            <div class="menu-actions-grid">
+              <el-button class="menu-action" @click="openGuide">
+                <el-icon><Reading /></el-icon>
+                <span>使用教程</span>
+              </el-button>
+              <el-button class="menu-action" :class="{ active: chatStore.showSearch }" :disabled="!chatStore.activeConversationId" @click="chatStore.toggleSearch(); showMoreMenu = false">
+                <el-icon><Search /></el-icon>
+                <span>搜索消息</span>
+              </el-button>
+            </div>
+          </section>
+
           <section v-if="isMobile" class="menu-section">
             <div class="menu-section-title">角色</div>
             <el-select
@@ -562,18 +683,28 @@ const displayName = computed(() => {
     </template>
   </el-dialog>
 
-  <el-drawer v-model="guideOpen" title="使用教程" direction="rtl" size="min(760px, 92vw)" class="guide-drawer">
+  <el-drawer v-model="guideOpen" title="Chat RP 使用指南" :direction="isMobile ? 'btt' : 'rtl'" :size="isMobile ? '94%' : 'min(760px, 92vw)'" class="guide-drawer">
     <div class="guide-layout">
-      <nav class="guide-nav" aria-label="教程章节">
+      <nav v-if="!isMobile" class="guide-nav" aria-label="教程章节">
         <button v-for="(section, index) in guideSections" :key="section.title" type="button" :class="{ active: activeGuideSection === index }" @click="activeGuideSection = index">
           <span>{{ String(index + 1).padStart(2, '0') }}</span>{{ section.title }}
         </button>
       </nav>
+      <el-select v-else v-model="activeGuideSection" class="guide-mobile-select" aria-label="选择教程章节">
+        <el-option v-for="(section, index) in guideSections" :key="section.title" :label="`${index + 1}. ${section.title}`" :value="index" />
+      </el-select>
       <article class="guide-content">
-        <p class="guide-lead">这是一个本地角色聊天应用。选择章节查看详细说明。</p>
+        <div class="guide-progress">第 {{ activeGuideSection + 1 }} 章，共 {{ guideSections.length }} 章</div>
         <section>
           <h3>{{ guideSections[activeGuideSection].title }}</h3>
-          <ol><li v-for="item in guideSections[activeGuideSection].items" :key="item">{{ item }}</li></ol>
+          <p class="guide-lead">{{ guideSections[activeGuideSection].summary }}</p>
+          <ol class="guide-steps">
+            <li v-for="step in guideSections[activeGuideSection].steps" :key="step.title">
+              <strong>{{ step.title }}</strong>
+              <p>{{ step.detail }}</p>
+            </li>
+          </ol>
+          <div class="guide-tip"><strong>小提示</strong><span>{{ guideSections[activeGuideSection].tip }}</span></div>
         </section>
       </article>
     </div>
@@ -619,22 +750,28 @@ const displayName = computed(() => {
 .guide-nav button:hover, .guide-nav button.active { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--text-primary); }
 .guide-nav button.active span { color: var(--primary); }
 
-.guide-content { max-height: min(66vh, 620px); overflow-y: auto; padding-right: 8px; color: var(--text-secondary); line-height: 1.6; }
+.guide-content { min-width: 0; flex: 1; max-height: min(72vh, 680px); overflow-y: auto; padding-right: 8px; color: var(--text-secondary); line-height: 1.65; }
 .guide-content section { padding: 10px 0; border-top: 1px solid var(--border-glass); }
-.guide-content h3 { margin: 0 0 4px; color: var(--text-primary); font-size: 14px; }
-.guide-content p { margin: 4px 0; font-size: 12px; }
-.guide-content ol, .guide-content ul { margin: 5px 0 0; padding-left: 20px; font-size: 12px; }
-.guide-content li { margin: 3px 0; }
-.guide-lead { color: var(--text-primary); font-weight: 600; }
+.guide-content h3 { margin: 0 0 6px; color: var(--text-primary); font-size: 20px; }
+.guide-content p { margin: 4px 0; font-size: 13px; }
+.guide-lead { color: var(--text-secondary); }
+.guide-progress { margin-bottom: 8px; color: var(--primary); font-size: 11px; font-weight: 700; }
+.guide-steps { margin: 18px 0 0; padding: 0; list-style: none; counter-reset: guide-step; }
+.guide-steps li { position: relative; margin: 0 0 12px; padding: 12px 14px 12px 48px; border: 1px solid var(--border-glass); border-radius: 12px; background: var(--bg-glass); counter-increment: guide-step; }
+.guide-steps li::before { position: absolute; top: 12px; left: 13px; width: 24px; height: 24px; display: grid; place-items: center; content: counter(guide-step); border-radius: 50%; background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary); font-size: 11px; font-weight: 800; }
+.guide-steps strong { color: var(--text-primary); font-size: 13px; }
+.guide-steps p { color: var(--text-secondary); line-height: 1.65; }
+.guide-tip { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; border-radius: 12px; background: color-mix(in srgb, #f59e0b 10%, var(--bg-glass)); color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+.guide-tip strong { color: #b45309; }
+.guide-mobile-select { width: 100%; flex-shrink: 0; }
 
 :deep(.guide-drawer .el-drawer__body) { padding: 18px; }
 
 @media (max-width: 600px) {
-  .guide-button { padding-inline: 8px; }
-  .guide-layout { gap: 12px; }
-  .guide-nav { width: 132px; flex-basis: 132px; padding-right: 8px; }
-  .guide-nav button { padding-inline: 6px; font-size: 11px; }
-  .guide-nav button span { width: 20px; }
+  .guide-layout { height: 100%; flex-direction: column; gap: 12px; }
+  .guide-content { max-height: none; flex: 1; padding-right: 2px; }
+  .guide-content h3 { font-size: 18px; }
+  .guide-steps li { padding: 11px 12px 11px 44px; }
 }
 
 .character-select { width: 150px; }
@@ -869,7 +1006,7 @@ const displayName = computed(() => {
 
   .header-left {
     gap: 8px;
-    max-width: calc(100% - 132px);
+    max-width: calc(100% - 128px);
   }
 
   .header-avatar {
@@ -888,6 +1025,29 @@ const displayName = computed(() => {
   .icon-btn {
     width: 36px !important;
     height: 36px !important;
+  }
+}
+</style>
+
+<style>
+@media (max-width: 800px) {
+  .app-more-popover {
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 82px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .guide-drawer .el-drawer__header {
+    min-height: 58px;
+    margin-bottom: 0;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-glass);
+  }
+
+  .guide-drawer .el-drawer__body {
+    min-height: 0;
+    padding: 14px 16px max(16px, env(safe-area-inset-bottom)) !important;
   }
 }
 </style>

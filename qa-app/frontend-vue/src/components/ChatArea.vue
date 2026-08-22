@@ -6,11 +6,16 @@ import { useChatStore } from '../store/chatStore'
 import MessageBubble from './chat/MessageBubble.vue'
 import MessageInput from './chat/MessageInput.vue'
 
+const props = defineProps({
+  isMobile: { type: Boolean, default: false },
+})
+
 const chatStore = useChatStore()
 const chatBoxRef = ref(null)
 const isAcceptingSuggestion = ref(false)
 const isConfirmingGoal = ref(false)
 const isCreatingInheritedConversation = ref(false)
+const storyDetailsOpen = ref(false)
 
 const scrollToBottom = async () => {
   await nextTick()
@@ -218,33 +223,40 @@ const createInheritedConversation = async () => {
       </span>
     </div>
 
-    <section v-if="chatStore.isStoryMode" class="story-status-panel">
+    <section v-if="chatStore.isStoryMode" class="story-status-panel" :class="{ compact: props.isMobile }">
       <div class="story-status-header">
         <div>
           <span class="story-status-kicker">故事状态</span>
           <strong>{{ chatStore.activeConversation?.title || '当前章节' }}</strong>
         </div>
-        <el-button size="small" plain @click="confirmStoryEvent">确认关键事件</el-button>
+        <el-button v-if="props.isMobile" size="small" text @click="storyDetailsOpen = !storyDetailsOpen">
+          {{ storyDetailsOpen ? '收起' : '展开故事信息' }}
+        </el-button>
       </div>
-      <div class="story-status-grid">
-        <div class="story-status-item">
-          <span>最终目标</span>
-          <strong>{{ chatStore.activeRelationship.goal || '尚未设置' }}</strong>
+      <div v-show="!props.isMobile || storyDetailsOpen" class="story-status-body">
+        <div class="story-status-actions">
+          <el-button size="small" plain @click="confirmStoryEvent">确认关键事件</el-button>
         </div>
-        <div class="story-status-item">
-          <span>章节进度</span>
-          <strong>第 {{ chatStore.activeConversation?.chapterNumber || 1 }} 章 · {{ chatStore.activeRelationship.chapters?.length || 1 }} 章</strong>
+        <div class="story-status-grid">
+          <div class="story-status-item">
+            <span>最终目标</span>
+            <strong>{{ chatStore.activeRelationship.goal || '尚未设置' }}</strong>
+          </div>
+          <div class="story-status-item">
+            <span>章节进度</span>
+            <strong>第 {{ chatStore.activeConversation?.chapterNumber || 1 }} 章 · {{ chatStore.activeRelationship.chapters?.length || 1 }} 章</strong>
+          </div>
         </div>
-      </div>
-      <div class="story-recap">
-        <span>章节回顾</span>
-        <p>{{ chapterRecap }}</p>
-      </div>
-      <div v-if="chatStore.characterSettings.memory?.relationshipMemory?.length" class="story-events">
-        <span>已确认事件</span>
-        <ul>
-          <li v-for="event in chatStore.characterSettings.memory.relationshipMemory.slice(-3)" :key="event">{{ event }}</li>
-        </ul>
+        <div class="story-recap">
+          <span>章节回顾</span>
+          <p>{{ chapterRecap }}</p>
+        </div>
+        <div v-if="chatStore.characterSettings.memory?.relationshipMemory?.length" class="story-events">
+          <span>已确认事件</span>
+          <ul>
+            <li v-for="event in chatStore.characterSettings.memory.relationshipMemory.slice(-3)" :key="event">{{ event }}</li>
+          </ul>
+        </div>
       </div>
     </section>
 
@@ -409,6 +421,7 @@ const createInheritedConversation = async () => {
 }
 .story-status-header, .story-status-grid { display: flex; justify-content: space-between; gap: 14px; }
 .story-status-header { align-items: center; }
+.story-status-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
 .story-status-header strong, .story-status-item strong { display: block; margin-top: 3px; font-size: 12px; }
 .story-status-kicker, .story-status-item > span, .story-recap > span, .story-events > span { color: var(--text-muted); font-size: 10px; }
 .story-status-grid { margin-top: 10px; }
@@ -706,7 +719,7 @@ const createInheritedConversation = async () => {
   }
 
   .chat-messages-container {
-    padding: 16px 12px;
+    padding: 14px 10px;
   }
 
   .message-stream {
@@ -714,6 +727,34 @@ const createInheritedConversation = async () => {
   }
 
   .context-usage-indicator small { display: none; }
+
+  .mode-context {
+    padding: 8px 10px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 8px;
+  }
+
+  .mode-context-copy {
+    grid-column: 1 / -1;
+    white-space: normal;
+    line-height: 1.4;
+  }
+
+  .context-usage-indicator { grid-column: 2; grid-row: 1; margin-left: 0; }
+
+  .story-status-panel.compact {
+    margin: 6px 8px 0;
+    padding: 9px 11px;
+  }
+
+  .story-status-panel.compact .story-status-actions { justify-content: stretch; }
+  .story-status-panel.compact .story-status-actions :deep(.el-button) { width: 100%; margin: 0; }
+  .story-status-panel.compact .story-status-grid { flex-direction: column; gap: 7px; }
+  .story-status-panel.compact .story-status-item strong { white-space: normal; }
+
+  .search-bar { padding: 8px; }
+  .search-bar :deep(.el-button) { margin-left: 6px !important; }
 
   .chapter-suggestion-card {
     align-items: flex-start;
@@ -723,6 +764,21 @@ const createInheritedConversation = async () => {
   .chapter-suggestion-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .context-capacity-notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    margin: 8px 8px 0;
+  }
+
+  .context-capacity-notice .chapter-suggestion-actions {
+    justify-content: stretch;
+  }
+
+  .context-capacity-notice .chapter-suggestion-actions :deep(.el-button) {
+    width: 100%;
+    margin: 0;
   }
 }
 </style>

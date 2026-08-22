@@ -63,6 +63,7 @@ const insertEmoji = (emoji) => {
 
 <template>
   <div class="message-input-container">
+    <div class="input-tools" aria-label="输入工具">
 
     <!-- 表情选择器 -->
     <el-popover
@@ -132,6 +133,7 @@ const insertEmoji = (emoji) => {
         </div>
       </div>
     </el-popover>
+    </div>
 
     <div class="input-wrapper">
       <el-input
@@ -172,6 +174,14 @@ const insertEmoji = (emoji) => {
 
 .input-wrapper {
   flex: 1;
+  min-width: 0;
+}
+
+.input-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 :deep(.custom-textarea .el-textarea__inner) {
@@ -238,13 +248,29 @@ const insertEmoji = (emoji) => {
 
 @media (max-width: 800px) {
   .message-input-container {
-    padding: 10px 12px;
+    padding: 8px 10px max(8px, env(safe-area-inset-bottom));
     gap: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .input-wrapper {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .input-tools {
+    grid-column: 1;
+    grid-row: 2;
   }
 
   .send-btn {
+    grid-column: 2;
+    grid-row: 2;
     height: 36px;
-    padding: 0 14px;
+    min-width: 76px;
+    padding: 0 18px;
   }
 
   .settings-btn,
@@ -254,7 +280,8 @@ const insertEmoji = (emoji) => {
   }
 
   :deep(.custom-textarea .el-textarea__inner) {
-    padding: 8px 10px;
+    min-height: 42px !important;
+    padding: 10px 12px;
     font-size: 14px;
   }
 }

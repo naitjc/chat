@@ -232,4 +232,28 @@ const avatarSrc = computed(() => {
 }
 
 .plain { white-space: pre-wrap; }
+
+@media (max-width: 800px) {
+  .chat-message-item {
+    max-width: 96%;
+    gap: 7px;
+  }
+
+  .avatar-col { margin-top: 14px; }
+
+  .message-avatar {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .message-bubble {
+    padding: 10px 13px;
+    border-radius: 15px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .message-header { font-size: 10px; }
+  .bookmark-icon { opacity: 0.55; }
+}
 </style>

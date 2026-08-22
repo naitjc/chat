@@ -104,7 +104,13 @@ watch(
         <Transition name="settings-panel">
           <CharacterSettings v-if="hasSelectedArchive && !isMobile && showDesktopSettings" />
         </Transition>
-        <ChatArea v-if="hasSelectedArchive" />
+        <ChatArea v-if="hasSelectedArchive" :is-mobile="isMobile" />
+        <section v-else-if="isMobile" class="mobile-empty-state">
+          <span class="mobile-empty-icon">💬</span>
+          <strong>先打开一个聊天存档</strong>
+          <p>存档会保存聊天记录、关系状态和角色设定。</p>
+          <el-button type="primary" @click="conversationDrawerOpen = true">选择或新建存档</el-button>
+        </section>
       </el-main>
     </el-container>
 
@@ -116,6 +122,16 @@ watch(
       :with-header="false"
       class="conversation-drawer"
     >
+      <div class="mobile-drawer-header">
+        <span>选择聊天内容</span>
+        <el-button
+          :icon="Close"
+          circle
+          text
+          aria-label="返回聊天"
+          @click="conversationDrawerOpen = false"
+        />
+      </div>
       <ConversationSidebar @selected="conversationDrawerOpen = false" />
     </el-drawer>
 
@@ -188,13 +204,32 @@ watch(
     width: 100%;
     height: 100dvh;
     max-width: none;
-    padding: 10px;
+    padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
   }
 
   :deep(.el-main) {
     overflow: hidden;
     gap: 0;
   }
+
+  .mobile-empty-state {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    background: var(--bg-glass-card);
+    color: var(--text-secondary);
+    text-align: center;
+  }
+
+  .mobile-empty-state strong { color: var(--text-primary); font-size: 17px; }
+  .mobile-empty-state p { max-width: 260px; margin: 8px 0 18px; font-size: 13px; line-height: 1.6; }
+  .mobile-empty-icon { margin-bottom: 12px; font-size: 34px; }
 }
 </style>
 
@@ -212,6 +247,8 @@ watch(
 .conversation-drawer .el-drawer__body {
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .settings-drawer .el-drawer__body {
@@ -251,5 +288,18 @@ watch(
 
 .settings-drawer .settings-card > .el-card__body {
   height: 100% !important;
+}
+
+.conversation-drawer .conversation-sidebar-root {
+  min-height: 0;
+  flex: 1;
+}
+
+@media (max-width: 480px) {
+  .conversation-drawer.el-drawer,
+  .settings-drawer.el-drawer {
+    width: 100% !important;
+    max-width: none;
+  }
 }
 </style>
