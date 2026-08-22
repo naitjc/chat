@@ -52,9 +52,25 @@ const FRESH_RELATIONSHIP_STATE = {
 };
 
 const freshRelationshipState = (state = null) => ({
-  ...(cloneValue(state) || {}),
   ...FRESH_RELATIONSHIP_STATE,
+  ...(cloneValue(state) || {}),
 });
+
+const relationshipStateForAffection = (state, affection) => {
+  const next = { ...(state || {}), affection };
+  if (affection > 90) next.relationshipStage = "life_partner";
+  else if (affection > 80) next.relationshipStage = "intimate";
+  else if (affection > 60) next.relationshipStage = "close";
+  else if (affection >= 25) next.relationshipStage = "familiar";
+  else next.relationshipStage = "stranger";
+  next.distance = {
+    stranger: "distant", familiar: "normal", close: "close",
+    intimate: "intimate", life_partner: "inseparable",
+  }[next.relationshipStage];
+  return next;
+};
+
+const randomInitialMood = () => Math.floor(Math.random() * 21) - 10;
 
 let saveTimer = null;
 let saveSequence = Promise.resolve();
@@ -62,6 +78,10 @@ const MIN_CHAPTER_CHECK_MESSAGES = 8;
 const CHAPTER_CHECK_INTERVAL = 6;
 const MIN_GOAL_CHECK_MESSAGES = 8;
 const GOAL_CHECK_INTERVAL = 6;
+const CONTEXT_TOKEN_LIMIT = 24000;
+const CONTEXT_SOFT_RATIO = 0.7;
+const CONTEXT_HIGH_RATIO = 0.85;
+const CONTEXT_HARD_RATIO = 0.95;
 
 const withoutSnapshot = ({ snapshot, checkpoint, relationship, ...metadata }) =>
   metadata;
@@ -136,6 +156,24 @@ export const useChatStore = defineStore("chat", {
       return state.conversationHistory.filter((message) =>
         (message.content || "").toLowerCase().includes(query),
       );
+    },
+    contextUsage(state) {
+      const chars = (state.apiHistory || []).reduce((total, message) => {
+        const content = typeof message.content === "string"
+          ? message.content
+          : JSON.stringify(message.content || "");
+        return total + content.length + 32;
+      }, 0);
+      const tokens = Math.ceil(chars / 4);
+      const ratio = Math.min(1, tokens / CONTEXT_TOKEN_LIMIT);
+      return { tokens, ratio, percent: Math.round(ratio * 100) };
+    },
+    contextNoticeLevel() {
+      const ratio = this.contextUsage.ratio;
+      if (ratio >= CONTEXT_HARD_RATIO) return "hard";
+      if (ratio >= CONTEXT_HIGH_RATIO) return "high";
+      if (ratio >= CONTEXT_SOFT_RATIO) return "soft";
+      return "normal";
     },
   },
 
@@ -372,6 +410,9 @@ export const useChatStore = defineStore("chat", {
             latestChapter.id,
           );
           this._applyConversation(conversation);
+          // 初始化只载入角色用于展示存档列表，不自动打开任何存档。
+          this.activeConversationId = null;
+          this.activeRelationshipId = null;
         } else {
           this._resetSessionState();
           this.activeRelationshipId = null;
@@ -395,6 +436,9 @@ export const useChatStore = defineStore("chat", {
         title: relationshipTitle = "",
         mode = "free",
         goal = "",
+        initialAffection = 10,
+        initialMood = null,
+        inheritedSummary = "",
       } = normalizedOptions;
       if (
         this.activeConversationId &&
@@ -419,6 +463,16 @@ export const useChatStore = defineStore("chat", {
       template.relationshipState = freshRelationshipState(
         template.relationshipState,
       );
+      const affection = mode === "story" ? 0 : Number(initialAffection);
+      const normalizedAffection = Number.isFinite(affection)
+        ? Math.min(100, Math.max(0, Math.round(affection))) : 10;
+      template.relationshipState = relationshipStateForAffection(
+        template.relationshipState, normalizedAffection,
+      );
+      const resolvedInitialMood = Number.isFinite(Number(initialMood))
+        ? Math.min(10, Math.max(-10, Math.round(Number(initialMood))))
+        : randomInitialMood();
+      template.relationshipState.mood = resolvedInitialMood;
 
       const characterName = template.basicInfo?.name || "";
       const initialDefaults = {
@@ -438,6 +492,12 @@ export const useChatStore = defineStore("chat", {
         showSearch: false,
         characterDefaults: initialDefaults,
       };
+      if (inheritedSummary) {
+        initialSnapshot.apiHistory = [{
+          role: "system",
+          content: `[前情提要] ${String(inheritedSummary).trim()}`,
+        }];
+      }
 
       this.isConversationLoading = true;
       try {
@@ -445,6 +505,9 @@ export const useChatStore = defineStore("chat", {
           relationshipTitle,
           mode,
           goal,
+          initialAffection,
+          initialMood: resolvedInitialMood,
+          inheritedSummary,
           title: `与${characterName}的对话`,
           characterName,
           preview: "",
@@ -454,6 +517,9 @@ export const useChatStore = defineStore("chat", {
         this._setRelationships(await listRelationshipsApi());
         this.conversations = cloneValue(result.relationship.chapters || []);
         this._applyConversation(result.conversation);
+        // 创建自由模式时，初始好感度同时作为当前角色面板的运行时状态。
+        this.characterSettings.relationshipState.mood = resolvedInitialMood;
+        this._characterDefaults.relationshipState.mood = resolvedInitialMood;
         this.persistenceReady = true;
         this.persistenceError = "";
         return result;
@@ -471,6 +537,30 @@ export const useChatStore = defineStore("chat", {
         return this.createRelationship(character);
       }
       return this.createNextChapter();
+    },
+
+    async createInheritedConversation() {
+      if (!this.activeConversationId || this.isSending || this.isConversationLoading) return null;
+      await this.persistActiveConversation({ force: true });
+      const lastMessages = (this.apiHistory || []).slice(-12)
+        .map((message) => `${message.role === "user" ? "用户" : "角色"}：${String(message.content || "")}`)
+        .join("\n");
+      const memory = this.characterSettings.memory || {};
+      const memoryText = [...(memory.longTerm || []), ...(memory.relationshipMemory || [])]
+        .slice(-12).join("；");
+      const summary = [
+        lastMessages ? `最近对话：${lastMessages}` : "对话尚未形成摘要。",
+        memoryText ? `已确认记忆：${memoryText}` : "暂无额外确认记忆。",
+      ].join("\n");
+      const relationship = this.activeRelationship;
+      return this.createRelationship(cloneValue(this.characterSettings), {
+        title: `${this.characterSettings.basicInfo?.name || "角色"} · 继承对话`,
+        mode: relationship?.mode || "free",
+        goal: relationship?.goal || "",
+        initialAffection: this.characterSettings.relationshipState?.affection ?? 0,
+        initialMood: this.characterSettings.relationshipState?.mood ?? 0,
+        inheritedSummary: summary,
+      });
     },
 
     async createNextChapter(suggestion = null) {
@@ -670,6 +760,24 @@ export const useChatStore = defineStore("chat", {
         chapters.find((chapter) => chapter.status === "open") ||
         chapters[chapters.length - 1];
       if (target) await this.switchConversation(target.id);
+    },
+
+    async closeActiveConversation() {
+      if (this.isSending || this.isConversationLoading) return;
+      if (this.activeConversationId && !this.isActiveChapterReadOnly) {
+        await this.persistActiveConversation({ force: true });
+      }
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      this.activeRelationshipId = null;
+      this.activeConversationId = null;
+      this.conversations = [];
+      this.conversationHistory = [];
+      this.apiHistory = [];
+      this.streamingContent = "";
+      this.stateChangeNotice = null;
+      this._resetChapterSuggestion();
+      this._resetGoalSuggestion();
     },
 
     async switchConversation(id) {
@@ -939,6 +1047,24 @@ export const useChatStore = defineStore("chat", {
       this.scheduleConversationSave();
     },
 
+    async addConfirmedStoryEvent(eventText) {
+      const text = String(eventText || "").trim();
+      if (!text || !this.isStoryMode || !this.activeConversationId || this.isActiveChapterReadOnly) {
+        return false;
+      }
+      const memory = cloneValue(this.characterSettings.memory) || {
+        longTerm: [],
+        relationshipMemory: [],
+      };
+      const events = Array.isArray(memory.relationshipMemory)
+        ? memory.relationshipMemory : [];
+      if (!events.includes(text)) events.push(text);
+      memory.relationshipMemory = events.slice(-50);
+      this.characterSettings.memory = memory;
+      await this.persistActiveConversation({ force: true });
+      return true;
+    },
+
     async clearHistory() {
       if (this.isStoryMode) return this.createNextChapter();
       const name = this.characterSettings.basicInfo?.name || "角色";
@@ -1062,6 +1188,10 @@ export const useChatStore = defineStore("chat", {
         !this.activeConversationId ||
         this.isActiveChapterReadOnly
       ) {
+        return;
+      }
+      if (this.contextNoticeLevel === "hard") {
+        this.persistenceError = "上下文已接近上限，请先开启继承对话";
         return;
       }
       await this.persistActiveConversation({ force: true });

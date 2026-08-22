@@ -43,21 +43,37 @@ function buildSystemPrompt(settings, chatContext = {}) {
         const { affection, mood, relationshipStage, distance } = relationshipState;
         
         // 将数值转为更具文学色彩的描述
-        let moodDesc = "平和";
-        if (mood > 30) moodDesc = "非常愉悦";
-        else if (mood > 10) moodDesc = "较好";
-        else if (mood < -30) moodDesc = "极其低落";
-        else if (mood < -10) moodDesc = "有些沉闷";
+        let moodDesc = "平静";
+        if (mood >= 7) moodDesc = "明显愉快";
+        else if (mood >= 3) moodDesc = "心情不错";
+        else if (mood <= -7) moodDesc = "明显低落";
+        else if (mood <= -3) moodDesc = "有些沉闷";
+        const affectionGuidance = affection >= 81
+            ? "亲密自然，主动表达关心和依恋，可以使用更亲昵的称呼"
+            : affection >= 61
+                ? "明显信任，愿意分享想法并给予支持"
+                : affection >= 25
+                    ? "逐渐熟悉，保持友好但仍留有分寸"
+                    : "关系疏远，保持谨慎和礼貌，不要无依据地亲昵";
+        const moodGuidance = mood >= 7
+            ? "语气轻快、积极回应，适度表现兴奋或笑意"
+            : mood >= 3
+                ? "语气温和，有耐心地回应"
+                : mood <= -7
+                    ? "语句更短、更克制，表现疲惫或低落，不要突然热情"
+                    : mood <= -3
+                        ? "减少玩笑和夸张表达，语气略显沉闷"
+                        : "保持正常、稳定的语气";
 
         systemPrompt += `\n### [当前互动状态 - 重要参考]
 - **关系阶段**: ${relationshipStage} (当前距离: ${distance})
 - **对夫人的好感度**: ${affection}/100
 - **当前情绪状态**: ${moodDesc} (${mood})
 
-**角色指导**: 
-1. 此时你的言行应反映上述状态。
-2. 如果心情(mood)较差，话语应更加简减，甚至带有一丝疲惫或冷淡。
-3. 随着好感度(affection)提升，应表现得更加亲昵、更有保护欲。\n`;
+**角色指导（必须落实到本次回复）**:
+1. 好感度行为：${affectionGuidance}。
+2. 情绪行为：${moodGuidance}。
+3. 回复至少体现一处上述状态变化（语气、称呼、主动性、亲疏距离或情绪反应），但不要直接说出数值，也不要机械复述状态。\n`;
     }
 
     // 基本信息

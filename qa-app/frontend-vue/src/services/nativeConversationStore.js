@@ -270,6 +270,17 @@ export async function createRelationship(input = {}) {
     mode === 'story' ? `${characterName} · 主线故事` : `${characterName} · 自由聊天`,
   )
   const snapshot = clone(input.snapshot)
+  const state = snapshot.characterSettings?.relationshipState || {}
+  const affection = mode === 'story' ? 0 : Math.min(100, Math.max(0, Math.round(Number(input.initialAffection) || 10)))
+  const mood = Number.isFinite(Number(input.initialMood))
+    ? Math.min(10, Math.max(-10, Math.round(Number(input.initialMood))))
+    : Math.floor(Math.random() * 21) - 10
+  state.affection = affection
+  state.mood = mood
+  state.relationshipStage = affection > 90 ? 'life_partner' : affection > 80 ? 'intimate' : affection > 60 ? 'close' : affection >= 25 ? 'familiar' : 'stranger'
+  state.distance = { stranger: 'distant', familiar: 'normal', close: 'close', intimate: 'intimate', life_partner: 'inseparable' }[state.relationshipStage]
+  snapshot.characterSettings = { ...(snapshot.characterSettings || {}), relationshipState: state }
+  snapshot.characterDefaults = { ...(snapshot.characterDefaults || {}), relationshipState: clone(state) }
   snapshot.schemaVersion = 2
   snapshot.relationshipId = relationshipId
   snapshot.chapterNumber = 1

@@ -6,10 +6,11 @@ import ConversationSidebar from './components/ConversationSidebar.vue'
 import SnowEffect from './components/SnowEffect.vue'
 import PopupModal from './components/PopupModal.vue'
 import { useChatStore } from './store/chatStore'
-import { ref, provide, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, provide, onMounted, onBeforeUnmount, watch } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 
 const chatStore = useChatStore()
+const hasSelectedArchive = computed(() => Boolean(chatStore.activeConversationId))
 const showSnow = ref(true)
 const isMobile = ref(false)
 const showDesktopSettings = ref(true)
@@ -44,6 +45,7 @@ onBeforeUnmount(() => {
 const handleCharacterSelect = (character) => chatStore.setCharacter(character)
 const handleBackgroundUpdate = (bg) => chatStore.setChatBackground(bg)
 const toggleSettings = () => {
+  if (!hasSelectedArchive.value) return
   if (isMobile.value) {
     conversationDrawerOpen.value = false
     settingsDrawerOpen.value = !settingsDrawerOpen.value
@@ -100,9 +102,9 @@ watch(
           <ConversationSidebar v-if="!isMobile && showDesktopConversations" />
         </Transition>
         <Transition name="settings-panel">
-          <CharacterSettings v-if="!isMobile && showDesktopSettings" />
+          <CharacterSettings v-if="hasSelectedArchive && !isMobile && showDesktopSettings" />
         </Transition>
-        <ChatArea />
+        <ChatArea v-if="hasSelectedArchive" />
       </el-main>
     </el-container>
 
@@ -135,7 +137,7 @@ watch(
           @click="settingsDrawerOpen = false"
         />
       </div>
-      <CharacterSettings />
+      <CharacterSettings v-if="hasSelectedArchive" />
     </el-drawer>
   </div>
 </template>

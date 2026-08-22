@@ -9,6 +9,10 @@
 - **关系状态**：根据互动更新好感度、情绪、关系阶段和距离，并将状态反映到角色回复中。
 - **持久化与分支**：SQLite 保存角色快照、聊天记录、记忆与章节检查点；故事模式可以从过去章节创建独立分支。
 - **上下文压缩**：长对话自动生成前情提要，控制发送给模型的上下文长度。
+- **容量提醒与继承**：显示上下文估算占用量，并在接近上限时创建继承角色、关系、记忆和最近对话的新存档。
+- **可控初始状态**：自由模式可设置初始好感度；故事模式从好感度 0 开始，新存档的初始情绪在 -10～10 内生成并持久保存。
+- **显式故事记忆**：用户可以确认关键事件，将其作为长期故事记忆继承，普通闲聊不会自动写入。
+- **内置教程**：Web 与 Android 界面均可直接打开分章节使用教程，完整说明另见 [USER_GUIDE.md](USER_GUIDE.md)。
 - **本地图片优化**：上传头像或背景时自动校验格式、限制大小并缩放为 WebP，避免存档无限膨胀。
 
 ## 技术栈
@@ -72,6 +76,10 @@ Android 与 Web 共用 Vue 界面和聊天状态，但通过运行平台选择�
 
 首次打开 Android 应用时，在“模型 API 设置”中填写 API 地址和 API Key。Android 版固定使用 `DeepSeek-V4-Flash`，无需填写模型名称。
 
+最新 Android 调试版（v1.1.0）：[下载 APK](https://github.com/naitjc/chat/releases/download/v1.1.0/Chat-RP-v1.1.0.apk)
+
+> 该安装包使用开发调试签名，适合个人安装测试。Android 可能提示来源未知，需要在系统设置中允许当前浏览器或文件管理器安装应用。
+
 本地构建需要 JDK 21、Android SDK Platform 36 和 Android Build Tools：
 
 ```bash
@@ -86,7 +94,7 @@ npm run android:apk
 qa-app/frontend-vue/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-该 APK 使用开发调试签名，适合直接安装测试；正式分发时应改用自己的 release keystore 签名。
+该 APK 使用开发调试签名，适合直接安装测试；正式分发时应改用自己的 release keystore 签名。当前 Android 版本号为 `1.1.0`（versionCode `2`）。
 
 ## 主要目录
 

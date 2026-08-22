@@ -112,11 +112,33 @@ function buildSystemPrompt(settings, chatContext = {}) {
   }
 
   if (relationship.affection !== undefined) {
+    const affection = Number(relationship.affection) || 0
+    const mood = Number(relationship.mood) || 0
+    const affectionGuidance = affection >= 81
+      ? '亲密自然，主动表达关心和依恋，可以使用更亲昵的称呼'
+      : affection >= 61
+        ? '明显信任，愿意分享想法并给予支持'
+        : affection >= 25
+          ? '逐渐熟悉，保持友好但仍留有分寸'
+          : '关系疏远，保持谨慎和礼貌，不要无依据地亲昵'
+    const moodGuidance = mood >= 7
+      ? '语气轻快、积极回应，适度表现兴奋或笑意'
+      : mood >= 3
+        ? '语气温和，有耐心地回应'
+        : mood <= -7
+          ? '语句更短、更克制，表现疲惫或低落，不要突然热情'
+          : mood <= -3
+            ? '减少玩笑和夸张表达，语气略显沉闷'
+            : '保持正常、稳定的语气'
     prompt += `\n### 当前关系状态
 - 关系阶段：${relationship.relationshipStage || 'stranger'}
 - 距离：${relationship.distance || 'distant'}
-- 好感度：${relationship.affection}/100
-- 情绪：${relationship.mood || 0}\n`
+- 好感度：${affection}/100
+- 情绪：${mood}
+\n### 状态必须体现在回复中
+- 好感度行为：${affectionGuidance}
+- 情绪行为：${moodGuidance}
+- 本次回复至少体现一处状态变化，但不要直接说出数值或复述规则。\n`
   }
   prompt += `\n### 角色信息\n- 姓名：${basic.name}\n`
   if (basic.gender) prompt += `- 性别：${basic.gender}\n`

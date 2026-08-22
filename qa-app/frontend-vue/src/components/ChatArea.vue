@@ -10,6 +10,7 @@ const chatStore = useChatStore()
 const chatBoxRef = ref(null)
 const isAcceptingSuggestion = ref(false)
 const isConfirmingGoal = ref(false)
+const isCreatingInheritedConversation = ref(false)
 
 const scrollToBottom = async () => {
   await nextTick()
@@ -26,6 +27,14 @@ watch(() => chatStore.isSending, () => { scrollToBottom() })
 
 // 返回搜索词高亮过滤后的消息列表
 const displayMessages = computed(() => chatStore.filteredHistory)
+const chapterRecap = computed(() => {
+  const summary = chatStore.activeConversation?.summary
+  if (summary) return summary
+  const continuity = (chatStore.apiHistory || []).find(
+    (message) => message.role === 'system' && String(message.content || '').startsWith('[上一章提要]'),
+  )
+  return continuity?.content?.replace(/^\[上一章提要\]\s*/, '') || '本章正在进行中，结束章节时会生成回顾。'
+})
 
 const stateNoticeText = computed(() => {
   const sc = chatStore.stateChangeNotice
@@ -51,7 +60,7 @@ const forkFromReadonly = async () => {
   const relationship = chatStore.activeRelationship
   if (!relationship || !chatStore.activeConversationId) return
   try {
-    const { value } = await ElMessageBox.prompt(
+const { value } = await ElMessageBox.prompt(
       '分支故事会继承这里的关系、记忆与最终目标，之后独立发展。',
       '从这里创建分支故事',
       {
@@ -120,6 +129,41 @@ const confirmGoalAchievement = async () => {
     isConfirmingGoal.value = false
   }
 }
+
+const confirmStoryEvent = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '只记录你明确确认的事实，例如“我们约定下周一起调查旧车站”。这条内容会作为故事记忆继承到后续章节。',
+      '确认关键事件',
+      {
+        inputType: 'textarea',
+        inputPattern: /\S+/,
+        inputErrorMessage: '关键事件不能为空',
+        confirmButtonText: '保存事件',
+        cancelButtonText: '取消',
+      },
+    )
+    if (await chatStore.addConfirmedStoryEvent(value)) {
+      ElMessage.success('关键事件已加入故事记忆')
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || '保存关键事件失败')
+    }
+  }
+}
+
+const createInheritedConversation = async () => {
+  isCreatingInheritedConversation.value = true
+  try {
+    const result = await chatStore.createInheritedConversation()
+    if (result) ElMessage.success('已开启继承对话，关系和记忆已保留')
+  } catch (error) {
+    ElMessage.error(error.message || '开启继承对话失败')
+  } finally {
+    isCreatingInheritedConversation.value = false
+  }
+}
 </script>
 
 <template>
@@ -155,7 +199,7 @@ const confirmGoalAchievement = async () => {
       :class="chatStore.isStoryMode ? 'story' : 'free'"
     >
       <span class="mode-context-badge">
-        {{ chatStore.isStoryMode ? '🎯 故事模式' : '☁️ 自由模式' }}
+        {{ chatStore.isStoryMode ? '🎯 故事模式 Beta' : '☁️ 自由模式' }}
       </span>
       <span class="mode-context-copy">
         <template v-if="chatStore.isStoryMode">
@@ -164,7 +208,64 @@ const confirmGoalAchievement = async () => {
         </template>
         <template v-else>没有主线和章节，想聊什么都可以</template>
       </span>
+      <span
+        class="context-usage-indicator"
+        :class="chatStore.contextNoticeLevel"
+        :title="`估算上下文：${chatStore.contextUsage.tokens.toLocaleString()} tokens`"
+      >
+        上下文 {{ chatStore.contextUsage.percent }}%
+        <small>{{ chatStore.contextUsage.tokens.toLocaleString() }} tokens</small>
+      </span>
     </div>
+
+    <section v-if="chatStore.isStoryMode" class="story-status-panel">
+      <div class="story-status-header">
+        <div>
+          <span class="story-status-kicker">故事状态</span>
+          <strong>{{ chatStore.activeConversation?.title || '当前章节' }}</strong>
+        </div>
+        <el-button size="small" plain @click="confirmStoryEvent">确认关键事件</el-button>
+      </div>
+      <div class="story-status-grid">
+        <div class="story-status-item">
+          <span>最终目标</span>
+          <strong>{{ chatStore.activeRelationship.goal || '尚未设置' }}</strong>
+        </div>
+        <div class="story-status-item">
+          <span>章节进度</span>
+          <strong>第 {{ chatStore.activeConversation?.chapterNumber || 1 }} 章 · {{ chatStore.activeRelationship.chapters?.length || 1 }} 章</strong>
+        </div>
+      </div>
+      <div class="story-recap">
+        <span>章节回顾</span>
+        <p>{{ chapterRecap }}</p>
+      </div>
+      <div v-if="chatStore.characterSettings.memory?.relationshipMemory?.length" class="story-events">
+        <span>已确认事件</span>
+        <ul>
+          <li v-for="event in chatStore.characterSettings.memory.relationshipMemory.slice(-3)" :key="event">{{ event }}</li>
+        </ul>
+      </div>
+    </section>
+
+    <Transition name="chapter-suggestion">
+      <aside v-if="chatStore.contextNoticeLevel !== 'normal'" class="context-capacity-notice" :class="chatStore.contextNoticeLevel" aria-live="polite">
+        <span class="chapter-suggestion-icon">{{ chatStore.contextNoticeLevel === 'hard' ? '⛔' : '🧠' }}</span>
+        <div class="chapter-suggestion-copy">
+          <strong>
+            {{ chatStore.contextNoticeLevel === 'hard' ? '记忆容量已接近极限' : '记忆正在变得庞大' }}
+          </strong>
+          <span>
+            {{ chatStore.characterSettings.basicInfo?.name || '角色' }}的前情记录已使用约 {{ chatStore.contextUsage.percent }}%，可以开启一段继承对话。
+          </span>
+        </div>
+        <div class="chapter-suggestion-actions">
+          <el-button size="small" type="primary" :loading="isCreatingInheritedConversation" @click="createInheritedConversation">
+            开启并继承
+          </el-button>
+        </div>
+      </aside>
+    </Transition>
 
     <div v-if="chatStore.isActiveChapterReadOnly" class="readonly-notice">
       <span>这是过去的章节，只能查看。</span>
@@ -297,6 +398,29 @@ const confirmGoalAchievement = async () => {
   position: relative;
 }
 
+.story-status-panel {
+  margin: 10px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, #7c3aed 20%, var(--border-glass));
+  border-radius: 12px;
+  background: color-mix(in srgb, #7c3aed 5%, var(--bg-glass-card));
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.story-status-header, .story-status-grid { display: flex; justify-content: space-between; gap: 14px; }
+.story-status-header { align-items: center; }
+.story-status-header strong, .story-status-item strong { display: block; margin-top: 3px; font-size: 12px; }
+.story-status-kicker, .story-status-item > span, .story-recap > span, .story-events > span { color: var(--text-muted); font-size: 10px; }
+.story-status-grid { margin-top: 10px; }
+.story-status-item { min-width: 0; flex: 1; }
+.story-status-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.story-recap, .story-events { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border-glass); }
+.story-recap p { margin: 4px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.story-events ul { margin: 5px 0 0; padding-left: 16px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.context-capacity-notice { margin: 10px 12px 0; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid color-mix(in srgb, #f59e0b 28%, var(--border-glass)); border-radius: 12px; background: color-mix(in srgb, #f59e0b 9%, var(--bg-glass)); }
+.context-capacity-notice.high { border-color: color-mix(in srgb, #f97316 35%, var(--border-glass)); background: color-mix(in srgb, #f97316 10%, var(--bg-glass)); }
+.context-capacity-notice.hard { border-color: color-mix(in srgb, #ef4444 40%, var(--border-glass)); background: color-mix(in srgb, #ef4444 10%, var(--bg-glass)); }
+
 :deep(.el-card__body) {
   padding: 0;
   display: flex;
@@ -334,6 +458,21 @@ const confirmGoalAchievement = async () => {
   background: color-mix(in srgb, var(--primary) 7%, var(--bg-glass));
   z-index: 4;
 }
+.context-usage-indicator {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border-glass));
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.context-usage-indicator small { margin-left: 4px; color: var(--text-muted); font-size: 9px; }
+.context-usage-indicator.soft { color: #b45309; border-color: rgba(245, 158, 11, 0.35); }
+.context-usage-indicator.high { color: #c2410c; border-color: rgba(249, 115, 22, 0.4); }
+.context-usage-indicator.hard { color: #b91c1c; border-color: rgba(239, 68, 68, 0.45); }
 
 .chapter-suggestion-card {
   margin: 10px 12px 0;
@@ -573,6 +712,8 @@ const confirmGoalAchievement = async () => {
   .message-stream {
     gap: 16px;
   }
+
+  .context-usage-indicator small { display: none; }
 
   .chapter-suggestion-card {
     align-items: flex-start;

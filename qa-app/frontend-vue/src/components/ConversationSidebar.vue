@@ -10,7 +10,7 @@ const chatStore = useChatStore()
 const createDialogOpen = ref(false)
 const isCreating = ref(false)
 const isCreatingChapter = ref(false)
-const createForm = reactive({ mode: 'free', title: '', goal: '' })
+const createForm = reactive({ mode: 'free', title: '', goal: '', initialAffection: 10 })
 
 const currentCharacterId = computed(() => chatStore.characterSettings.id || '')
 const currentCharacterName = computed(
@@ -84,6 +84,7 @@ const openCreateDialog = () => {
   createForm.mode = 'free'
   createForm.title = nextDefaultTitle('free')
   createForm.goal = ''
+  createForm.initialAffection = 10
   createDialogOpen.value = true
 }
 
@@ -105,6 +106,7 @@ const submitArchive = async () => {
       title,
       mode: createForm.mode,
       goal,
+      initialAffection: createForm.initialAffection,
     })
     if (result) {
       createDialogOpen.value = false
@@ -150,6 +152,11 @@ const createChapter = async (relationship) => {
 }
 
 const selectArchive = async (relationship) => {
+  if (relationship.id === chatStore.activeRelationshipId) {
+    await chatStore.closeActiveConversation()
+    emit('selected')
+    return
+  }
   await chatStore.switchRelationship(relationship.id)
   emit('selected')
 }
@@ -361,7 +368,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
             </span>
             <span class="archive-meta-row">
               <span class="mode-badge" :class="relationship.mode">
-                {{ relationship.mode === 'story' ? '故事模式' : '自由模式' }}
+                {{ relationship.mode === 'story' ? '故事模式 Beta' : '自由模式' }}
               </span>
               <span class="archive-meta">
                 <template v-if="relationship.mode === 'story'">
@@ -565,7 +572,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
       >
         <span class="mode-option-icon">🎯</span>
         <span class="mode-option-copy">
-          <strong>故事模式</strong>
+          <strong>故事模式 <em class="beta-label">Beta</em></strong>
           <small>设定最终目标，由你推进章节</small>
         </span>
       </button>
@@ -589,6 +596,13 @@ const handleChapterCommand = (command, relationship, chapter) => {
           placeholder="例如：和六花一起找到失落的不可视境界线"
         />
         <div class="goal-help">模型会记住方向，但行动、节奏与章节都由你决定。</div>
+      </el-form-item>
+      <el-form-item v-if="createForm.mode === 'free'" label="初始好感度">
+        <div class="affection-input">
+          <el-slider v-model="createForm.initialAffection" :min="0" :max="100" :step="1" />
+          <span class="affection-value">{{ createForm.initialAffection }}/100</span>
+        </div>
+        <div class="goal-help">仅影响这次自由模式存档的初始关系。</div>
       </el-form-item>
     </el-form>
 
@@ -747,6 +761,13 @@ const handleChapterCommand = (command, relationship, chapter) => {
 .mode-badge.story {
   background: rgba(139, 92, 246, 0.12);
   color: #7c3aed;
+}
+.beta-label {
+  margin-left: 3px;
+  color: #b45309;
+  font-size: 0.72em;
+  font-style: normal;
+  letter-spacing: 0.02em;
 }
 .archive-meta,
 .chapter-meta {
@@ -1023,6 +1044,9 @@ const handleChapterCommand = (command, relationship, chapter) => {
 .archive-form { margin-top: 16px; }
 .archive-form :deep(.el-form-item) { margin-bottom: 14px; }
 .goal-help { margin-top: 5px; color: var(--text-muted); font-size: 10px; }
+.affection-input { display: flex; align-items: center; gap: 14px; width: 100%; }
+.affection-input .el-slider { flex: 1; }
+.affection-value { min-width: 52px; color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }
 
 @keyframes pulse { to { opacity: 0.25; } }
 

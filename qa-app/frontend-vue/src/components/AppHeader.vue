@@ -11,6 +11,7 @@ import {
   EditPen,
   MoreFilled,
   PictureFilled,
+  Reading,
   RefreshLeft,
   Search,
   Setting,
@@ -50,6 +51,20 @@ const nativeSettingsOpen = ref(false)
 const isTestingNativeModel = ref(false)
 const isSavingNativeModel = ref(false)
 const nativeModelSettings = reactive({ apiURL: '', apiKey: '' })
+const guideOpen = ref(false)
+const activeGuideSection = ref(0)
+const guideSections = [
+  { title: '开始使用', items: ['顶部选择预设角色或自定义角色。', '点击聊天存档名称打开聊天；角色设定面板会显示当前角色和关系状态。', '没有合适角色时，创建角色并填写姓名、性格、语调、身份和背景。'] },
+  { title: '创建聊天存档', items: ['自由模式没有主线和章节，适合日常聊天；创建时可设置存档名称和初始好感度。', '故事模式 Beta 需要最终目标，从好感度 0 开始；用户决定行动、节奏和是否切章。', '每个存档都有独立的聊天记录、关系状态、记忆和背景。'] },
+  { title: '打开与收起存档', items: ['第一次点击存档会打开角色设定和聊天面板。', '再次点击当前存档会收起两个面板，但不会删除数据。', '删除存档会删除对应记录且无法恢复。'] },
+  { title: '好感度与情绪', items: ['好感度影响称呼、亲疏距离、主动性和亲密程度。', '情绪影响语气、表达长度、玩笑程度和回应方式。', '关系阶段：0～24 素昧平生；25～60 泛泛之交；61～80 志同道合；81～90 亲密无间；91～100 相濡以沫。', '新建存档时情绪会在 -10～10 之间随机生成，并固定保存在存档中。'] },
+  { title: '故事模式功能', items: ['故事状态面板显示最终目标、目标状态、当前章节、章节回顾和已确认事件。', '模型可以建议切章，但不会替用户做关键决定。', '过去章节为只读，可以从过去章节创建分支故事。'] },
+  { title: '确认关键事件', items: ['在故事状态面板点击“确认关键事件”。', '填写明确发生且希望长期保留的事实。', '保存后会成为故事记忆，供后续章节继承。', '普通闲聊不会自动写入长期记忆。'] },
+  { title: '上下文容量与继承', items: ['聊天面板右上角显示估算上下文占用量。', '达到约 70%、85% 和 95% 时会分级提醒。', '点击“开启并继承”会保留角色设定、关系值、长期记忆、事件、目标和前情提要。', '百分比是文本长度估算值，不等同于服务商精确 token 计费值。'] },
+  { title: '角色设定与界面', items: ['角色设定支持基本信息、性格、表达习惯、行为准则、背景、喜好和厌恶。', '顶部更多菜单支持更换头像、聊天背景和主题。', '消息区域支持搜索、收藏和 Markdown 显示。'] },
+  { title: '数据与隐私', items: ['Web 端使用后端 SQLite，Android 端使用手机 SQLite。', 'Web 和 Android 存档不会自动同步。', '删除存档不可恢复。', '模型请求会发送到当前配置的兼容接口，请勿填写敏感信息。'] },
+  { title: '常见问题', items: ['状态通过语气、称呼、主动性和亲疏距离体现，不会机械复述数字。', '存档保存自己的角色快照；新建存档会使用最新角色设定。', 'Web 和 Android 使用独立本地存储，不会自动同步。'] },
+]
 
 const themes = [
   { id: 'default', label: '✨ 默认', color: '#7c83fd' },
@@ -322,6 +337,15 @@ const displayName = computed(() => {
     </div>
 
     <div class="header-right">
+      <el-tooltip content="使用教程" placement="bottom">
+        <el-button
+          :icon="Reading"
+          class="guide-button"
+          aria-label="教程"
+          @click="guideOpen = true"
+        >教程</el-button>
+      </el-tooltip>
+
       <el-tooltip :content="conversationsOpen ? '收起聊天存档' : '展开聊天存档'" placement="bottom">
         <el-button
           :icon="ChatLineRound"
@@ -537,6 +561,23 @@ const displayName = computed(() => {
       </el-button>
     </template>
   </el-dialog>
+
+  <el-drawer v-model="guideOpen" title="使用教程" direction="rtl" size="min(760px, 92vw)" class="guide-drawer">
+    <div class="guide-layout">
+      <nav class="guide-nav" aria-label="教程章节">
+        <button v-for="(section, index) in guideSections" :key="section.title" type="button" :class="{ active: activeGuideSection === index }" @click="activeGuideSection = index">
+          <span>{{ String(index + 1).padStart(2, '0') }}</span>{{ section.title }}
+        </button>
+      </nav>
+      <article class="guide-content">
+        <p class="guide-lead">这是一个本地角色聊天应用。选择章节查看详细说明。</p>
+        <section>
+          <h3>{{ guideSections[activeGuideSection].title }}</h3>
+          <ol><li v-for="item in guideSections[activeGuideSection].items" :key="item">{{ item }}</li></ol>
+        </section>
+      </article>
+    </div>
+  </el-drawer>
 </template>
 
 <style scoped>
@@ -568,6 +609,32 @@ const displayName = computed(() => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+.guide-button { padding-inline: 10px; }
+
+.guide-layout { display: flex; gap: 20px; min-height: 100%; }
+.guide-nav { width: 180px; flex: 0 0 180px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--border-glass); padding-right: 14px; }
+.guide-nav button { border: 0; border-radius: 8px; padding: 9px 10px; text-align: left; background: transparent; color: var(--text-secondary); cursor: pointer; font: inherit; font-size: 12px; }
+.guide-nav button span { display: inline-block; width: 26px; color: var(--text-muted); font-size: 10px; }
+.guide-nav button:hover, .guide-nav button.active { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--text-primary); }
+.guide-nav button.active span { color: var(--primary); }
+
+.guide-content { max-height: min(66vh, 620px); overflow-y: auto; padding-right: 8px; color: var(--text-secondary); line-height: 1.6; }
+.guide-content section { padding: 10px 0; border-top: 1px solid var(--border-glass); }
+.guide-content h3 { margin: 0 0 4px; color: var(--text-primary); font-size: 14px; }
+.guide-content p { margin: 4px 0; font-size: 12px; }
+.guide-content ol, .guide-content ul { margin: 5px 0 0; padding-left: 20px; font-size: 12px; }
+.guide-content li { margin: 3px 0; }
+.guide-lead { color: var(--text-primary); font-weight: 600; }
+
+:deep(.guide-drawer .el-drawer__body) { padding: 18px; }
+
+@media (max-width: 600px) {
+  .guide-button { padding-inline: 8px; }
+  .guide-layout { gap: 12px; }
+  .guide-nav { width: 132px; flex-basis: 132px; padding-right: 8px; }
+  .guide-nav button { padding-inline: 6px; font-size: 11px; }
+  .guide-nav button span { width: 20px; }
 }
 
 .character-select { width: 150px; }

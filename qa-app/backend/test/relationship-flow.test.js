@@ -120,11 +120,35 @@ test("free mode never creates chapters", () => {
   );
 });
 
+test("free mode persists a custom initial affection", () => {
+  const created = store.createRelationship({
+    snapshot: snapshot(),
+    mode: "free",
+    initialAffection: 72,
+  });
+  assert.equal(created.conversation.snapshot.characterSettings.relationshipState.affection, 72);
+  assert.equal(created.conversation.snapshot.characterDefaults.relationshipState.affection, 72);
+  assert.equal(created.relationship.mode, "free");
+});
+
 test("new story mode requires a final goal", () => {
   assert.throws(
     () => store.createRelationship({ snapshot: snapshot(), mode: "story" }),
     (error) => error.status === 400 && /最终目标/.test(error.message),
   );
+});
+
+test("story mode starts at zero affection and keeps the provided mood", () => {
+  const created = store.createRelationship({
+    snapshot: snapshot(),
+    mode: "story",
+    goal: "完成第一幕",
+    initialMood: -7,
+  });
+  const state = created.conversation.snapshot.characterSettings.relationshipState;
+  assert.equal(state.affection, 0);
+  assert.equal(state.mood, -7);
+  assert.equal(state.relationshipStage, "stranger");
 });
 
 test("story goal completion requires user-confirmed evidence and remains reversible", () => {
@@ -171,6 +195,24 @@ test("chat prompts keep the two mode boundaries explicit", () => {
   assert.match(storyPrompt, /不得擅自跳章/);
   assert.match(storyPrompt, /用户已确认达成/);
   assert.match(storyPrompt, /不代表对话必须结束/);
+});
+
+test("chat prompts translate relationship values into observable behavior", () => {
+  const prompt = buildSystemPrompt(
+    {
+      ...snapshot().characterSettings,
+      relationshipState: {
+        affection: 5,
+        mood: -8,
+        relationshipStage: "stranger",
+        distance: "distant",
+      },
+    },
+    { mode: "free" },
+  );
+  assert.match(prompt, /保持谨慎和礼貌/);
+  assert.match(prompt, /语句更短、更克制/);
+  assert.match(prompt, /至少体现一处/);
 });
 
 test("chat input validation rejects oversized or malformed payloads", () => {
