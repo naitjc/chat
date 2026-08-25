@@ -206,12 +206,9 @@ const createInheritedConversation = async () => {
       <span class="mode-context-badge">
         {{ chatStore.isStoryMode ? '🎯 故事模式 Beta' : '☁️ 自由模式' }}
       </span>
-      <span class="mode-context-copy">
-        <template v-if="chatStore.isStoryMode">
-          最终目标：{{ chatStore.activeRelationship.goal || '尚未设置' }}
-          · {{ chatStore.activeRelationship.goalStatus === 'achieved' ? '已达成' : '进行中' }}
-        </template>
-        <template v-else>没有主线和章节，想聊什么都可以</template>
+      <span v-if="chatStore.isStoryMode" class="mode-context-copy">
+        最终目标：{{ chatStore.activeRelationship.goal || '尚未设置' }}
+        · {{ chatStore.activeRelationship.goalStatus === 'achieved' ? '已达成' : '进行中' }}
       </span>
       <span
         class="context-usage-indicator"

@@ -250,33 +250,27 @@ const insertEmoji = (emoji) => {
   .message-input-container {
     padding: 8px 10px max(8px, env(safe-area-inset-bottom));
     gap: 8px;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-  }
-
-  .input-wrapper {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    display: flex;
+    align-items: flex-end;
   }
 
   .input-tools {
-    grid-column: 1;
-    grid-row: 2;
+    flex-shrink: 0;
+  }
+
+  .settings-btn {
+    display: none;
   }
 
   .send-btn {
-    grid-column: 2;
-    grid-row: 2;
-    height: 36px;
-    min-width: 76px;
-    padding: 0 18px;
+    height: 42px;
+    min-width: 64px;
+    padding: 0 14px;
   }
 
-  .settings-btn,
   .emoji-btn-trigger {
-    width: 36px !important;
-    height: 36px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
 
   :deep(.custom-textarea .el-textarea__inner) {

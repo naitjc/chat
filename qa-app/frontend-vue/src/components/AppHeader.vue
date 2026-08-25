@@ -81,9 +81,9 @@ const guideSections = [
     summary: '手机端把功能分成聊天主界面、存档抽屉、角色设置和更多菜单。',
     steps: [
       { title: '存档', detail: '顶部文件夹按钮用于打开存档与章节。选择内容后会自动返回聊天，不需要手动关闭。' },
-      { title: '角色设置', detail: '顶部齿轮按钮用于查看和修改当前存档中的角色信息。必须先打开一个存档才能使用。' },
+      { title: '角色设置', detail: '点击顶部的角色头像，可以查看和修改当前存档中的角色信息。必须先打开一个存档才能使用。' },
       { title: '更多', detail: '三点菜单包含角色切换、创建角色、教程、消息搜索、头像、主题、背景、导出和 Android 模型设置。' },
-      { title: '聊天输入区', detail: '文本框单独占一行；表情和模型参数位于下方工具区，发送按钮位于右侧，避免误触。' },
+      { title: '聊天输入区', detail: '表情、文本框和发送按钮位于同一行；模型参数可以在“更多”菜单中调节。' },
     ],
     tip: '抽屉顶部都有“返回聊天”按钮；也可以点击抽屉外的暗色区域关闭。',
   },
@@ -436,7 +436,19 @@ const displayName = computed(() => {
       </el-select>
 
       <template v-if="chatStore.characterSettings.basicInfo.name">
-        <el-avatar :src="chatStore.characterSettings.avatar" :size="34" class="header-avatar" />
+        <el-button
+          v-if="isMobile"
+          class="header-avatar-button"
+          :class="{ active: settingsOpen }"
+          :disabled="!chatStore.activeConversationId"
+          aria-label="打开角色设置"
+          title="角色设置"
+          circle
+          @click="emit('toggle-settings')"
+        >
+          <el-avatar :src="chatStore.characterSettings.avatar" :size="30" class="header-avatar" />
+        </el-button>
+        <el-avatar v-else :src="chatStore.characterSettings.avatar" :size="34" class="header-avatar" />
       </template>
 
       <span class="header-char-name">{{ displayName || '选择角色' }}</span>
@@ -462,7 +474,7 @@ const displayName = computed(() => {
         />
       </el-tooltip>
 
-      <el-tooltip :content="isMobile ? '角色设置' : (settingsOpen ? '收起角色设置' : '展开角色设置')" placement="bottom">
+      <el-tooltip v-if="!isMobile" :content="settingsOpen ? '收起角色设置' : '展开角色设置'" placement="bottom">
         <el-button
           :icon="Setting"
           class="icon-btn"
@@ -622,6 +634,38 @@ const displayName = computed(() => {
                 <el-icon><Download /></el-icon>
                 <span>导出对话</span>
               </el-button>
+            </div>
+          </section>
+
+          <section v-if="isMobile" class="menu-section model-params-section">
+            <div class="menu-section-title"><el-icon><Setting /></el-icon> 模型参数</div>
+            <div class="model-param-row">
+              <div class="model-param-label">
+                <span>Temperature</span>
+                <strong>{{ chatStore.modelParams.temperature.toFixed(2) }}</strong>
+              </div>
+              <el-slider
+                v-model="chatStore.modelParams.temperature"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                :show-tooltip="false"
+                aria-label="Temperature"
+              />
+            </div>
+            <div class="model-param-row">
+              <div class="model-param-label">
+                <span>Top-P</span>
+                <strong>{{ chatStore.modelParams.top_p.toFixed(2) }}</strong>
+              </div>
+              <el-slider
+                v-model="chatStore.modelParams.top_p"
+                :min="0.01"
+                :max="1"
+                :step="0.01"
+                :show-tooltip="false"
+                aria-label="Top-P"
+              />
             </div>
           </section>
 
@@ -788,6 +832,24 @@ const displayName = computed(() => {
   box-shadow: var(--shadow-primary);
 }
 
+.header-avatar-button {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  padding: 1px !important;
+  overflow: hidden;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+}
+
+.header-avatar-button.active {
+  border-color: var(--primary) !important;
+}
+
+.header-avatar-button:disabled {
+  opacity: 0.55;
+}
+
 .header-char-name {
   font-size: 14px;
   font-weight: 600;
@@ -934,6 +996,29 @@ const displayName = computed(() => {
   grid-column: 1 / -1;
 }
 
+.model-param-row + .model-param-row {
+  margin-top: 10px;
+}
+
+.model-param-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.model-param-label strong {
+  color: var(--text-accent);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.model-param-row :deep(.el-slider) {
+  height: 24px;
+}
+
 .menu-action-emoji {
   width: 1em;
   text-align: center;
@@ -1006,7 +1091,7 @@ const displayName = computed(() => {
 
   .header-left {
     gap: 8px;
-    max-width: calc(100% - 128px);
+    max-width: calc(100% - 88px);
   }
 
   .header-avatar {
