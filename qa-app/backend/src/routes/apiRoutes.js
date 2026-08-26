@@ -7,6 +7,7 @@ const rateLimiter = require("../middleware/rateLimiter");
 router.get("/health", (req, res) => res.json({ status: "ok" }));
 router.post("/qa/stream", chatController.handleChatStream);
 router.put("/model", chatController.updateModel);
+router.post("/model/test", chatController.testModel);
 router.get("/relationships", conversationController.listRelationships);
 router.post("/relationships", conversationController.createRelationship);
 router.get("/relationships/:id", conversationController.getRelationship);

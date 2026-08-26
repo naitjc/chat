@@ -368,7 +368,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
             </span>
             <span class="archive-meta-row">
               <span class="mode-badge" :class="relationship.mode">
-                {{ relationship.mode === 'story' ? '故事模式 Beta' : '自由模式' }}
+                {{ relationship.mode === 'story' ? '故事模式 Beta（测试版）' : '自由模式' }}
               </span>
               <span class="archive-meta">
                 <template v-if="relationship.mode === 'story'">
@@ -573,7 +573,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
         <span class="mode-option-icon">🎯</span>
         <span class="mode-option-copy">
           <strong>故事模式 <em class="beta-label">Beta</em></strong>
-          <small>设定最终目标，由你推进章节</small>
+          <small>测试阶段，并非完整版本；设定最终目标后由你推进章节</small>
         </span>
       </button>
     </div>

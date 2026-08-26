@@ -5,6 +5,7 @@ const config = require('./src/config/config');
 const apiRoutes = require('./src/routes/apiRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 const rateLimiter = require('./src/middleware/rateLimiter');
+const { modelConfigContext } = require('./src/middleware/modelConfigContext');
 
 try {
   config.validate();
@@ -17,6 +18,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
+app.use(modelConfigContext);
 app.use(express.static(path.join(__dirname, '../frontend-vue/dist')));
 
 // 对 AI 接口应用速率限制

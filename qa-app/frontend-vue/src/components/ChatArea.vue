@@ -41,15 +41,15 @@ const chapterRecap = computed(() => {
   return continuity?.content?.replace(/^\[上一章提要\]\s*/, '') || '本章正在进行中，结束章节时会生成回顾。'
 })
 
-const stateNoticeText = computed(() => {
+const stateNoticeItems = computed(() => {
   const sc = chatStore.stateChangeNotice
-  if (!sc) return null
+  if (!sc) return []
   const parts = []
   if (sc.affectionDelta > 0) parts.push(`💖 好感度 +${sc.affectionDelta}`)
   else if (sc.affectionDelta < 0) parts.push(`💔 好感度 ${sc.affectionDelta}`)
   if (sc.moodDelta > 0) parts.push(`😊 情绪 +${sc.moodDelta}`)
   else if (sc.moodDelta < 0) parts.push(`😔 情绪 ${sc.moodDelta}`)
-  return parts.length ? parts.join('  ') : null
+  return parts
 })
 
 const onSearchInput = (e) => {
@@ -190,11 +190,13 @@ const createInheritedConversation = async () => {
 
     <!-- 状态变化浮动提示 -->
     <Transition name="notice-fade">
-      <div v-if="stateNoticeText" class="state-notice" :style="{ top: chatStore.showSearch ? '60px' : '12px'}">
-        {{ stateNoticeText }}
-        <span v-if="chatStore.stateChangeNotice?.reason" class="notice-reason">
-          — {{ chatStore.stateChangeNotice.reason }}
-        </span>
+      <div v-if="stateNoticeItems.length" class="state-notice" :style="{ top: chatStore.showSearch ? '60px' : '12px'}">
+        <div class="state-notice-values">
+          <span v-for="item in stateNoticeItems" :key="item">{{ item }}</span>
+        </div>
+        <p v-if="chatStore.stateChangeNotice?.reason" class="notice-reason">
+          {{ chatStore.stateChangeNotice.reason }}
+        </p>
       </div>
     </Transition>
 
@@ -204,7 +206,7 @@ const createInheritedConversation = async () => {
       :class="chatStore.isStoryMode ? 'story' : 'free'"
     >
       <span class="mode-context-badge">
-        {{ chatStore.isStoryMode ? '🎯 故事模式 Beta' : '☁️ 自由模式' }}
+        {{ chatStore.isStoryMode ? '🎯 故事模式 Beta · 测试版' : '☁️ 自由模式' }}
       </span>
       <span v-if="chatStore.isStoryMode" class="mode-context-copy">
         最终目标：{{ chatStore.activeRelationship.goal || '尚未设置' }}
@@ -574,6 +576,7 @@ const createInheritedConversation = async () => {
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
+  max-width: calc(100% - 32px);
   background: var(--bg-glass);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-glass-strong);
@@ -582,16 +585,26 @@ const createInheritedConversation = async () => {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-accent);
-  white-space: nowrap;
   z-index: 10;
   box-shadow: var(--shadow-sm);
   transition: top 0.3s ease;
 }
 
+.state-notice-values {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+
 .notice-reason {
+  margin: 3px 0 0;
   color: var(--text-muted);
   font-weight: 400;
   font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .notice-fade-enter-active, .notice-fade-leave-active {
@@ -752,6 +765,31 @@ const createInheritedConversation = async () => {
 
   .search-bar { padding: 8px; }
   .search-bar :deep(.el-button) { margin-left: 6px !important; }
+
+  .state-notice {
+    left: 10px;
+    right: 10px;
+    max-width: none;
+    max-height: min(40vh, 260px);
+    padding: 9px 12px;
+    transform: none;
+    overflow-y: auto;
+    border-radius: 12px;
+  }
+
+  .state-notice-values {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .notice-reason {
+    width: 100%;
+  }
+
+  .notice-fade-enter-from,
+  .notice-fade-leave-to {
+    transform: translateY(-8px);
+  }
 
   .chapter-suggestion-card {
     align-items: flex-start;

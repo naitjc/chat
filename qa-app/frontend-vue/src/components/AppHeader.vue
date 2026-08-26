@@ -20,6 +20,12 @@ import {
 import { readOptimizedImage } from '../utils/imageFile'
 import { isNativeApp } from '../services/platform'
 import { FIXED_NATIVE_MODEL } from '../services/nativeModelConfig'
+import {
+  clearWebModelSettings,
+  loadWebModelSettings,
+  saveWebModelSettings,
+} from '../services/webModelSettings'
+import { testWebModelConnection } from '../api/chat'
 
 const nativeSettingsService = () => import('../services/nativeModelSettings')
 const nativeLlmService = () => import('../services/nativeLlmRuntime')
@@ -51,15 +57,19 @@ const nativeSettingsOpen = ref(false)
 const isTestingNativeModel = ref(false)
 const isSavingNativeModel = ref(false)
 const nativeModelSettings = reactive({ apiURL: '', apiKey: '' })
+const webModelSettings = reactive({ apiURL: '', apiKey: '', model: '' })
+const activeModelSettings = computed(() => isNativeApp ? nativeModelSettings : webModelSettings)
 const guideOpen = ref(false)
 const activeGuideSection = ref(0)
 const guideSections = [
   {
     title: '第一次开始聊天',
-    summary: '从选择角色到发出第一条消息，通常只需要一分钟。',
+    summary: '按模型配置、选择角色、创建存档、开始聊天的顺序完成首次使用。',
     steps: [
+      { title: '配置模型（可选）', detail: '打开“更多”→“模型 API 设置”。Android 原生版需要填写兼容接口地址和 API Key；Web 版可以填写地址、Key 和模型名，也可以直接使用服务器配置。' },
       { title: '选择角色', detail: '手机端点击右上角“更多”，在“角色”区域选择预设角色；也可以点击“创建角色”制作自己的角色。' },
-      { title: '打开聊天存档', detail: '点击顶部的存档按钮。如果还没有存档，点击“新建”，再选择自由模式或故事模式。' },
+      { title: '创建聊天存档', detail: '点击顶部的存档按钮，再点击“新建”。选择自由模式或故事模式并填写必要信息后，应用会为当前角色建立独立存档。' },
+      { title: '打开已有存档', detail: '以后点击顶部存档按钮，再选择之前的存档即可继续。故事模式还可以在这里切换当前章节或查看过去章节。' },
       { title: '进入聊天', detail: '点击存档名称后抽屉会自动关闭，底部输入框随即可以使用。输入内容后点击“发送”。' },
       { title: '以后继续聊', detail: '应用会自动保存消息和关系状态。下次打开时，重新进入同一个存档即可接着聊。' },
     ],
@@ -70,20 +80,23 @@ const guideSections = [
     summary: '创建前先选对模式；存档创建后不会中途改变模式。',
     steps: [
       { title: '自由模式', detail: '适合日常陪伴、随意聊天和长期互动。没有最终目标，也不划分章节；创建时可以设置初始好感度。' },
-      { title: '故事模式 Beta', detail: '适合有明确方向的互动故事。创建时必须填写最终目标，新故事从好感度 0 开始。' },
+      { title: '故事模式 Beta（测试版）', detail: 'Beta 表示该模式仍在测试和完善中，并非完整版本，功能与规则以后可能调整。它适合有明确方向的互动故事；创建时必须填写最终目标，新故事从好感度 0 开始。' },
       { title: '如何选择', detail: '只是想聊天就选自由模式；希望围绕“找到失落星图”“一起完成旅行”等目标推进，就选故事模式。' },
+      { title: '模式不会中途切换', detail: '存档创建后不能直接把自由模式改成故事模式，反之亦然。需要另一种模式时，请为角色新建独立存档。' },
       { title: '不同存档互不影响', detail: '每个存档都有自己的消息、关系状态、记忆、背景和角色快照，可以为同一角色创建多条独立故事线。' },
     ],
     tip: '不确定时先用自由模式。故事模式更适合愿意主动推动剧情的用户。',
   },
   {
     title: '手机界面怎么用',
-    summary: '手机端把功能分成聊天主界面、存档抽屉、角色设置和更多菜单。',
+    summary: '手机顶部保留教程、存档和更多三个入口，角色设置则直接通过头像打开。',
     steps: [
+      { title: '教程', detail: '顶部书本按钮随时打开本指南，不需要先进入“更多”。可以使用章节选择器快速跳到需要的说明。' },
       { title: '存档', detail: '顶部文件夹按钮用于打开存档与章节。选择内容后会自动返回聊天，不需要手动关闭。' },
       { title: '角色设置', detail: '点击顶部的角色头像，可以查看和修改当前存档中的角色信息。必须先打开一个存档才能使用。' },
-      { title: '更多', detail: '三点菜单包含角色切换、创建角色、教程、消息搜索、头像、主题、背景、导出和 Android 模型设置。' },
+      { title: '更多', detail: '三点菜单包含角色切换、创建角色、消息搜索、头像、主题、背景、模型参数、导出和 Android 模型 API 设置。' },
       { title: '聊天输入区', detail: '表情、文本框和发送按钮位于同一行；模型参数可以在“更多”菜单中调节。' },
+      { title: '返回聊天', detail: '打开存档或角色设置抽屉后，可以点击顶部关闭按钮，也可以点击抽屉外区域返回聊天。' },
     ],
     tip: '抽屉顶部都有“返回聊天”按钮；也可以点击抽屉外的暗色区域关闭。',
   },
@@ -95,6 +108,7 @@ const guideSections = [
       { title: '关系阶段', detail: '0～24 素昧平生，25～60 泛泛之交，61～80 志同道合，81～90 亲密无间，91～100 相濡以沫。' },
       { title: '情绪', detail: '情绪影响当前回复的轻快、耐心、克制或低落程度。新建存档时会生成初始情绪，之后随互动变化。' },
       { title: '在哪里查看', detail: '打开角色设置，在状态卡片中点击“查看状态”。数值保存在当前存档中，不会影响其他存档。' },
+      { title: '状态如何变化', detail: '角色回复完成后，系统会根据本轮互动更新状态。短暂波动是正常的，长期关系更适合从连续多轮互动判断。' },
     ],
     tip: '角色不会直接朗读数值；请从称呼、语气、主动性和回应方式判断变化。',
   },
@@ -106,6 +120,7 @@ const guideSections = [
       { title: '进入下一章', detail: '模型可能在自然收束点给出建议，你也可以在存档抽屉中手动点击“结束本章，进入下一章”。' },
       { title: '过去章节', detail: '结束后的章节是只读的，不能继续发送消息，避免历史内容被意外改写。' },
       { title: '创建分支', detail: '打开过去章节并选择“从这里创建分支故事”，即可继承当时的角色、关系、记忆和目标，之后独立发展。' },
+      { title: '确认目标达成', detail: '模型认为最终目标已完成时只会提出建议。确认后故事状态才会变为已达成；如果证据不足，可以选择继续推进。' },
     ],
     tip: '模型的切章和目标达成判断都只是建议，只有你确认后才会改变故事状态。',
   },
@@ -135,7 +150,7 @@ const guideSections = [
     title: '角色、头像与外观',
     summary: '角色设定决定“是谁在说话”，外观设置只改变显示效果。',
     steps: [
-      { title: '创建角色', detail: '在“更多”菜单点击“创建角色”，填写姓名、身份、性格、语调、行为准则和背景；信息越具体，表现通常越稳定。' },
+      { title: '创建角色', detail: '在“更多”菜单点击“创建角色”，再点击“查看填写示例”了解每项应如何描述。填写姓名、身份、性格、语调和背景时越具体，角色表现通常越稳定。' },
       { title: '修改当前角色', detail: '先打开存档，再进入角色设置。修改会保存到当前存档的角色快照，不会自动覆盖其他旧存档。' },
       { title: '头像和聊天背景', detail: '在“更多”菜单中更换我的头像或聊天背景；也可以直接点击消息旁的头像进行更换。' },
       { title: '主题和特效', detail: '在“更多”的外观区域切换主题、背景和雪花特效。关闭特效可以减少低性能手机的视觉负担。' },
@@ -143,12 +158,14 @@ const guideSections = [
     tip: '修改角色模板后，新建存档会使用最新设定；已有存档仍保留自己的快照。',
   },
   {
-    title: 'Android 模型 API 设置',
-    summary: 'Android 原生版需要先配置自己的兼容接口，Web 版则使用服务器配置。',
+    title: '模型 API 设置',
+    summary: 'Android 使用本机安全配置；Web 可以临时使用自己的接口，也可以沿用服务器配置。',
     steps: [
-      { title: '打开设置', detail: 'Android 应用中点击“更多”→“模型 API 设置”。如果看不到该入口，说明当前运行的是 Web 版。' },
+      { title: '打开设置', detail: '在 Android 或 Web 版中点击“更多”→“模型 API 设置”。' },
       { title: '填写地址', detail: '输入服务商提供的 OpenAI 兼容 API 地址，通常以 /v1 结尾；不要把聊天网页地址误当成 API 地址。' },
-      { title: '填写密钥并测试', detail: '输入自己的 API Key，先点击“测试连接”；测试成功后再保存。密钥保存在手机系统安全存储中。' },
+      { title: '填写密钥并测试', detail: '输入自己的 API Key，先点击“测试连接”；测试成功后再保存。Android 密钥保存在手机系统安全存储中，Web 密钥只保存在当前浏览器会话。' },
+      { title: '模型名称', detail: 'Android 原生版使用应用内预设模型；Web 版还需要填写服务商支持的模型名称。Web 未设置或点击“使用服务器配置”后，会继续使用服务器已有配置。' },
+      { title: '模型参数', detail: '两端都在“更多”中的“模型参数”区域调节 Temperature 和 Top-P，并随当前存档保存。' },
       { title: '连接失败怎么办', detail: '检查网络、地址、密钥余额和服务商是否允许当前模型。部分服务商还会限制地区或并发请求。' },
     ],
     tip: '不要把 API Key 发到聊天消息里，也不要分享包含密钥的截图。',
@@ -159,6 +176,7 @@ const guideSections = [
     steps: [
       { title: '数据保存位置', detail: 'Android 存档保存在手机本地 SQLite；Web 存档保存在 Web 后端。两端目前不会自动同步。' },
       { title: '导出对话', detail: '打开“更多”→“导出对话”，可把当前聊天记录保存为文本文件。导出前请先进入目标存档。' },
+      { title: '更新与卸载', detail: '正常覆盖安装新版 APK 通常会保留应用数据；卸载应用会清除手机本地数据，因此卸载前应先导出重要对话。' },
       { title: '删除要谨慎', detail: '删除角色可能同时删除关联存档；删除存档会移除其中的消息、章节和状态，目前无法恢复。' },
       { title: '功能点不了', detail: '先确认已选择角色并打开存档；过去章节只能查看；发送中或加载中时部分按钮会暂时禁用。' },
       { title: '界面异常', detail: '尝试关闭并重新打开应用。若仍有问题，请记录手机型号、系统版本、操作步骤和错误提示，便于定位。' },
@@ -357,8 +375,12 @@ const openWizard = () => {
 }
 
 const openNativeSettings = async () => {
-  const { loadNativeModelSettings } = await nativeSettingsService()
-  Object.assign(nativeModelSettings, await loadNativeModelSettings())
+  if (isNativeApp) {
+    const { loadNativeModelSettings } = await nativeSettingsService()
+    Object.assign(nativeModelSettings, await loadNativeModelSettings())
+  } else {
+    Object.assign(webModelSettings, loadWebModelSettings())
+  }
   nativeSettingsOpen.value = true
   showMoreMenu.value = false
 }
@@ -366,13 +388,17 @@ const openNativeSettings = async () => {
 const saveNativeSettings = async () => {
   isSavingNativeModel.value = true
   try {
-    const { saveNativeModelSettings } = await nativeSettingsService()
-    Object.assign(
-      nativeModelSettings,
-      await saveNativeModelSettings(nativeModelSettings),
-    )
+    if (isNativeApp) {
+      const { saveNativeModelSettings } = await nativeSettingsService()
+      Object.assign(
+        nativeModelSettings,
+        await saveNativeModelSettings(nativeModelSettings),
+      )
+    } else {
+      Object.assign(webModelSettings, saveWebModelSettings(webModelSettings))
+    }
     nativeSettingsOpen.value = false
-    ElMessage.success('模型配置已安全保存在本机')
+    ElMessage.success(isNativeApp ? '模型配置已安全保存在本机' : '模型配置已保存到当前浏览器会话')
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
@@ -383,17 +409,28 @@ const saveNativeSettings = async () => {
 const testNativeSettings = async () => {
   isTestingNativeModel.value = true
   try {
-    const { saveNativeModelSettings } = await nativeSettingsService()
-    const { testNativeModelConnection } = await nativeLlmService()
-    const settings = await saveNativeModelSettings(nativeModelSettings)
-    Object.assign(nativeModelSettings, settings)
-    await testNativeModelConnection(settings)
+    if (isNativeApp) {
+      const { saveNativeModelSettings } = await nativeSettingsService()
+      const { testNativeModelConnection } = await nativeLlmService()
+      const settings = await saveNativeModelSettings(nativeModelSettings)
+      Object.assign(nativeModelSettings, settings)
+      await testNativeModelConnection(settings)
+    } else {
+      await testWebModelConnection(webModelSettings)
+    }
     ElMessage.success('模型接口连接成功')
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
     isTestingNativeModel.value = false
   }
+}
+
+const useServerModelSettings = () => {
+  clearWebModelSettings()
+  Object.assign(webModelSettings, { apiURL: '', apiKey: '', model: '' })
+  nativeSettingsOpen.value = false
+  ElMessage.success('已恢复使用服务器模型配置')
 }
 
 const onWizardSave = (character) => {
@@ -455,13 +492,13 @@ const displayName = computed(() => {
     </div>
 
     <div class="header-right">
-      <el-tooltip v-if="!isMobile" content="使用教程" placement="bottom">
+      <el-tooltip content="使用教程" placement="bottom">
         <el-button
           :icon="Reading"
-          class="guide-button"
+          :class="isMobile ? 'icon-btn' : 'guide-button'"
           aria-label="教程"
-          @click="guideOpen = true"
-        >教程</el-button>
+          @click="openGuide"
+        >{{ isMobile ? '' : '教程' }}</el-button>
       </el-tooltip>
 
       <el-tooltip :content="conversationsOpen ? '收起聊天存档' : '展开聊天存档'" placement="bottom">
@@ -519,12 +556,8 @@ const displayName = computed(() => {
 
         <div class="more-menu">
           <section v-if="isMobile" class="menu-section">
-            <div class="menu-section-title">帮助与查找</div>
-            <div class="menu-actions-grid">
-              <el-button class="menu-action" @click="openGuide">
-                <el-icon><Reading /></el-icon>
-                <span>使用教程</span>
-              </el-button>
+            <div class="menu-section-title">查找</div>
+            <div class="menu-actions-grid single-action">
               <el-button class="menu-action" :class="{ active: chatStore.showSearch }" :disabled="!chatStore.activeConversationId" @click="chatStore.toggleSearch(); showMoreMenu = false">
                 <el-icon><Search /></el-icon>
                 <span>搜索消息</span>
@@ -637,7 +670,7 @@ const displayName = computed(() => {
             </div>
           </section>
 
-          <section v-if="isMobile" class="menu-section model-params-section">
+          <section class="menu-section model-params-section">
             <div class="menu-section-title"><el-icon><Setting /></el-icon> 模型参数</div>
             <div class="model-param-row">
               <div class="model-param-label">
@@ -669,8 +702,8 @@ const displayName = computed(() => {
             </div>
           </section>
 
-          <section v-if="isNativeApp" class="menu-section">
-            <div class="menu-section-title"><el-icon><Connection /></el-icon> 本地应用</div>
+          <section class="menu-section">
+            <div class="menu-section-title"><el-icon><Connection /></el-icon> 模型服务</div>
             <div class="menu-actions-grid single-action">
               <el-button class="menu-action" @click="openNativeSettings">
                 <el-icon><Setting /></el-icon>
@@ -690,34 +723,41 @@ const displayName = computed(() => {
   <CharacterWizard v-if="showWizard" @save="onWizardSave" @close="showWizard = false" />
 
   <el-dialog
-    v-if="isNativeApp"
     v-model="nativeSettingsOpen"
     title="模型 API 设置"
     width="min(92vw, 460px)"
     :close-on-click-modal="false"
   >
     <p class="native-settings-note">
-      聊天数据保存在手机 SQLite 中；以下密钥只保存在系统安全存储，不会写入安装包。
+      {{ isNativeApp
+        ? '聊天数据保存在手机 SQLite 中；以下密钥只保存在系统安全存储，不会写入安装包。'
+        : '以下配置只保存在当前浏览器会话，关闭浏览器后清除；未设置时使用服务器模型配置。' }}
     </p>
     <el-form label-position="top">
       <el-form-item label="OpenAI 兼容 API 地址">
-        <el-input v-model="nativeModelSettings.apiURL" placeholder="https://example.com/v1" />
+        <el-input v-model="activeModelSettings.apiURL" placeholder="https://example.com/v1" />
       </el-form-item>
       <el-form-item label="API Key">
         <el-input
-          v-model="nativeModelSettings.apiKey"
+          v-model="activeModelSettings.apiKey"
           type="password"
           show-password
           autocomplete="off"
           placeholder="输入你自己的 API Key"
         />
       </el-form-item>
-      <div class="fixed-model-row">
+      <el-form-item v-if="!isNativeApp" label="模型名称">
+        <el-input v-model="webModelSettings.model" autocomplete="off" placeholder="例如：deepseek-chat" />
+      </el-form-item>
+      <div v-else class="fixed-model-row">
         <span>固定模型</span>
         <strong>{{ FIXED_NATIVE_MODEL }}</strong>
       </div>
     </el-form>
     <template #footer>
+      <el-button v-if="!isNativeApp" @click="useServerModelSettings">
+        使用服务器配置
+      </el-button>
       <el-button :loading="isTestingNativeModel" @click="testNativeSettings">
         测试连接
       </el-button>
@@ -1091,7 +1131,7 @@ const displayName = computed(() => {
 
   .header-left {
     gap: 8px;
-    max-width: calc(100% - 88px);
+    max-width: calc(100% - 128px);
   }
 
   .header-avatar {

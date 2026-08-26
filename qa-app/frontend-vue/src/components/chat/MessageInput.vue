@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue'
 import { useChatStore } from '../../store/chatStore'
-import { InfoFilled, Setting } from '@element-plus/icons-vue'
 const EmojiPicker = defineAsyncComponent(() => import('./EmojiPicker.vue'))
 
 const chatStore = useChatStore()
@@ -81,58 +80,6 @@ const insertEmoji = (emoji) => {
       <EmojiPicker @select="insertEmoji" />
     </el-popover>
 
-    <el-popover
-      placement="top"
-      title="模型参数调节"
-      :width="300"
-      trigger="click"
-      popper-class="parameter-popover"
-    >
-      <template #reference>
-        <el-button :icon="Setting" circle class="settings-btn" aria-label="模型参数" />
-      </template>
-      <div style="padding: 10px;">
-        <!-- Temperature Slider -->
-        <div style="margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-weight: bold; color: #606266;">
-              Temperature (温度)
-              <el-tooltip content="控制回复的随机性 [0.00, 1.00]。值越高越有创造力，越低越稳定严谨。" placement="top">
-                <el-icon style="margin-left: 4px; vertical-align: middle;"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </span>
-            <span style="color: #409EFF; font-family: monospace;">{{ chatStore.modelParams.temperature.toFixed(2) }}</span>
-          </div>
-          <el-slider
-            v-model="chatStore.modelParams.temperature"
-            :min="0"
-            :max="1"
-            :step="0.01"
-            :show-tooltip="false"
-          />
-        </div>
-
-        <!-- Top-P Slider -->
-        <div style="margin-bottom: 10px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-weight: bold; color: #606266;">
-              Top-P (核采样)
-              <el-tooltip content="另一种控制随机性的方式 [0.01, 1.00]。通常建议保持在 0.7-0.9 之间。" placement="top">
-                <el-icon style="margin-left: 4px; vertical-align: middle;"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </span>
-            <span style="color: #409EFF; font-family: monospace;">{{ chatStore.modelParams.top_p.toFixed(2) }}</span>
-          </div>
-          <el-slider
-            v-model="chatStore.modelParams.top_p"
-            :min="0.01"
-            :max="1"
-            :step="0.01"
-            :show-tooltip="false"
-          />
-        </div>
-      </div>
-    </el-popover>
     </div>
 
     <div class="input-wrapper">
@@ -216,19 +163,6 @@ const insertEmoji = (emoji) => {
   box-shadow: 0 6px 14px rgba(64, 158, 255, 0.3);
 }
 
-.settings-btn {
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.6) !important;
-  border: 1px solid rgba(0, 0, 0, 0.05) !important;
-  transition: all 0.3s ease;
-}
-
-.settings-btn:hover {
-  background: white !important;
-  transform: rotate(45deg);
-}
-
 .emoji-btn-trigger {
   width: 40px !important;
   height: 40px !important;
@@ -256,10 +190,6 @@ const insertEmoji = (emoji) => {
 
   .input-tools {
     flex-shrink: 0;
-  }
-
-  .settings-btn {
-    display: none;
   }
 
   .send-btn {

@@ -1,4 +1,5 @@
 import { isNativeApp } from "../services/platform";
+import { webModelHeaders } from "../services/webModelSettings";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8888";
 const REQUEST_TIMEOUT_MS = 15000;
@@ -273,7 +274,10 @@ export async function sendMessageStream(
   }
   const response = await fetch(`${API_URL}/qa/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...webModelHeaders(),
+    },
     body: JSON.stringify(payload),
   });
 
@@ -326,4 +330,13 @@ export async function sendMessageStream(
 
   if (streamError) throw new Error(streamError);
   if (!completed) throw new Error("连接提前结束，请重试");
+}
+
+export async function testWebModelConnection(settings) {
+  await request("/model/test", {
+    method: "POST",
+    headers: webModelHeaders(settings),
+    body: JSON.stringify({}),
+  });
+  return true;
 }

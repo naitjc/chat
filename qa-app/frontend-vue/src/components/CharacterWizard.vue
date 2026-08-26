@@ -1,10 +1,21 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ArrowDown, ArrowUp, Reading } from '@element-plus/icons-vue'
 
 const emit = defineEmits(['save', 'close'])
 
 const step = ref(1)
+const showExample = ref(false)
+
+const characterExample = [
+  { label: '角色姓名', value: '林知夏' },
+  { label: '年龄', value: '27' },
+  { label: '性别', value: '女' },
+  { label: '核心性格', value: '冷静理性，外冷内热，观察细致，有责任感' },
+  { label: '语调描述', value: '说话简洁克制，熟悉后会流露温柔，偶尔用轻微的反问表达关心' },
+  { label: '身份/职业', value: '城市博物馆的文物修复师，擅长从细节中发现线索' },
+]
 
 const form = reactive({
   basicInfo: { name: '', age: '', gender: '' },
@@ -67,6 +78,25 @@ const nextStep = () => {
   >
     <div class="wizard-container">
       <h2 class="wizard-title">✨ 创建新角色</h2>
+
+      <div class="example-section">
+        <el-button text class="example-toggle" @click="showExample = !showExample">
+          <el-icon><Reading /></el-icon>
+          <span>{{ showExample ? '收起填写示例' : '查看填写示例' }}</span>
+          <el-icon><ArrowUp v-if="showExample" /><ArrowDown v-else /></el-icon>
+        </el-button>
+        <el-collapse-transition>
+          <div v-show="showExample" class="character-example">
+            <p>例如，想创建一位冷静但温柔的文物修复师，可以这样填写：</p>
+            <dl>
+              <template v-for="item in characterExample" :key="item.label">
+                <dt>{{ item.label }}</dt>
+                <dd>{{ item.value }}</dd>
+              </template>
+            </dl>
+          </div>
+        </el-collapse-transition>
+      </div>
       
       <el-steps :active="step" finish-status="success" class="wizard-steps" align-center>
         <el-step title="基础信息" />
@@ -153,7 +183,44 @@ const nextStep = () => {
   font-size: 20px;
   color: var(--text-primary);
   margin-block-start: 0;
-  margin-block-end: 20px;
+  margin-block-end: 8px;
+}
+.example-section {
+  margin-bottom: 18px;
+}
+.example-toggle {
+  display: flex;
+  margin: 0 auto;
+  color: var(--text-accent);
+}
+.character-example {
+  margin-top: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-glass);
+  border-bottom: 1px solid var(--border-glass);
+}
+.character-example p {
+  margin: 0 0 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.character-example dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 6px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.character-example dt {
+  color: var(--text-muted);
+}
+.character-example dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 .wizard-steps {
   margin-bottom: 30px;

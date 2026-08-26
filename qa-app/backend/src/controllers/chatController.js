@@ -1,5 +1,5 @@
 const config = require("../config/config");
-const { callLLMStream } = require("../services/llmClient");
+const { callLLMStream, testLLMConnection } = require("../services/llmClient");
 const {
   analyzeMessageImpact,
   updateStateObject,
@@ -184,5 +184,14 @@ function updateModel(req, res) {
   res.json({ message: "模型切换成功", currentModel: config.model });
 }
 
-module.exports = { handleChatStream, updateModel };
+async function testModel(req, res, next) {
+  try {
+    await testLLMConnection();
+    res.json({ message: "模型接口连接成功" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { handleChatStream, updateModel, testModel };
 module.exports.validateChatInput = validateChatInput;

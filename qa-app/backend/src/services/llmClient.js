@@ -1,13 +1,17 @@
 const axios = require('axios');
 const config = require('../config/config');
+const { getRequestModelConfig } = require('../middleware/modelConfigContext');
+
+const runtimeConfig = () => getRequestModelConfig() || config;
 
 /**
  * 统一 LLM 调用客户端 (v2.0)
  * 集中管理 API URL 拼接、鉴权 Headers、超时保护
  */
 async function callLLM(messages, options = {}) {
+    const activeConfig = runtimeConfig();
     const {
-        model = config.model,
+        model = activeConfig.model,
         temperature = 0.5,
         stream = false,
         thinking = false,
@@ -15,10 +19,10 @@ async function callLLM(messages, options = {}) {
         top_p = 0.7
     } = options;
 
-    const apiKey = config.apiKey;
+    const apiKey = activeConfig.apiKey;
     if (!apiKey) throw new Error("API_KEY 未配置");
 
-    const targetURL = _buildURL();
+    const targetURL = _buildURL(activeConfig.apiURL);
 
     const requestBody = {
         model,
@@ -69,8 +73,9 @@ async function callLLM(messages, options = {}) {
  * @param {Function} onDone - (fullText: string) => void
  */
 async function callLLMStream(messages, options = {}, onChunk, onDone) {
+    const activeConfig = runtimeConfig();
     const {
-        model = config.model,
+        model = activeConfig.model,
         temperature = 0.5,
         thinking = false,
         timeout = 90000,
@@ -78,10 +83,10 @@ async function callLLMStream(messages, options = {}, onChunk, onDone) {
         signal,
     } = options;
 
-    const apiKey = config.apiKey;
+    const apiKey = activeConfig.apiKey;
     if (!apiKey) throw new Error("API_KEY 未配置");
 
-    const targetURL = _buildURL();
+    const targetURL = _buildURL(activeConfig.apiURL);
 
     const requestBody = {
         model,
@@ -142,12 +147,22 @@ async function callLLMStream(messages, options = {}, onChunk, onDone) {
     });
 }
 
-function _buildURL() {
-    let url = config.apiURL;
+async function testLLMConnection() {
+    const activeConfig = runtimeConfig();
+    const baseURL = activeConfig.apiURL.replace(/\/chat\/completions\/?$/, '').replace(/\/$/, '');
+    await axios.get(`${baseURL}/models`, {
+        headers: { 'Authorization': `Bearer ${activeConfig.apiKey}` },
+        timeout: 15000
+    });
+    return true;
+}
+
+function _buildURL(apiURL) {
+    let url = apiURL;
     if (!url.endsWith('/chat/completions')) {
         url = url.replace(/\/$/, '') + '/chat/completions';
     }
     return url;
 }
 
-module.exports = { callLLM, callLLMStream };
+module.exports = { callLLM, callLLMStream, testLLMConnection };
