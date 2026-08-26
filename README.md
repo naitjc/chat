@@ -77,7 +77,7 @@ Android 与 Web 共用 Vue 界面和聊天状态，但通过运行平台选择�
 
 首次打开 Android 应用时，在“模型 API 设置”中填写 API 地址和 API Key。Android 版固定使用 `DeepSeek-V4-Flash`，无需填写模型名称。
 
-最新 Android 调试版（v1.2.0）：[下载 APK](https://github.com/naitjc/chat/releases/download/v1.2.0/Chat-RP-v1.2.0.apk)
+最新 Android 调试版（v1.2.2）：[下载 APK](https://github.com/naitjc/chat/releases/download/v1.2.2/Chat-RP-v1.2.2.apk)
 
 > 该安装包使用开发调试签名，适合个人安装测试。Android 可能提示来源未知，需要在系统设置中允许当前浏览器或文件管理器安装应用。
 
@@ -95,7 +95,7 @@ npm run android:apk
 qa-app/frontend-vue/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-该 APK 使用开发调试签名，适合直接安装测试；正式分发时应改用自己的 release keystore 签名。当前 Android 版本号为 `1.2.0`（versionCode `3`）。
+该 APK 使用开发调试签名，适合直接安装测试；正式分发时应改用自己的 release keystore 签名。当前 Android 版本号为 `1.2.2`（versionCode `5`）。
 
 ## 主要目录
 
