@@ -23,11 +23,11 @@ const moodConfig = computed(() => {
 
 // 关系阶段
 const stageMap = {
-  'stranger':     { label: '素昧平生', color: '#94a3b8' },
-  'familiar':     { label: '泛泛之交', color: '#6b7280' },
-  'close':        { label: '志同道合', color: '#60a5fa' },
-  'intimate':     { label: '亲密无间', color: '#f472b6' },
-  'life_partner': { label: '相濡以沫', color: '#f97316' },
+  'stranger':     { label: '初识', color: '#94a3b8' },
+  'familiar':     { label: '熟悉', color: '#6b7280' },
+  'close':        { label: '信任', color: '#60a5fa' },
+  'intimate':     { label: '亲密', color: '#f472b6' },
+  'life_partner': { label: '长期伴侣', color: '#f97316' },
 }
 
 const stageInfo = computed(() => stageMap[state.value?.relationshipStage] || { label: '未知', color: '#94a3b8' })
@@ -106,10 +106,10 @@ const affectionColor = computed(() => {
 <style scoped>
 .status-panel {
   padding: 12px;
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--bg-card);
   backdrop-filter: blur(12px);
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--border-color);
   margin-bottom: 16px;
   box-shadow: 0 4px 20px rgba(124, 131, 253, 0.06);
 }
@@ -166,9 +166,9 @@ const affectionColor = computed(() => {
   font-weight: 500;
   transition: all 0.4s ease;
 }
-.mood-tag.great   { background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16,185,129,0.25); }
-.mood-tag.good    { background: rgba(52, 211, 153, 0.12); color: #10b981; border: 1px solid rgba(52,211,153,0.25); }
-.mood-tag.neutral { background: rgba(148,163,184,0.12);   color: #64748b; border: 1px solid rgba(148,163,184,0.25); }
+.mood-tag.great   { background: rgba(16, 185, 129, 0.12); color: var(--status-success); border: 1px solid rgba(16,185,129,0.25); }
+.mood-tag.good    { background: rgba(52, 211, 153, 0.12); color: var(--status-success); border: 1px solid rgba(52,211,153,0.25); }
+.mood-tag.neutral { background: rgba(148,163,184,0.12);   color: var(--text-secondary); border: 1px solid rgba(148,163,184,0.25); }
 .mood-tag.bad     { background: rgba(248, 113, 113, 0.12); color: #ef4444; border: 1px solid rgba(248,113,113,0.25); }
 .mood-tag.terrible{ background: rgba(239, 68, 68, 0.12);  color: #dc2626; border: 1px solid rgba(239,68,68,0.25); }
 
@@ -187,7 +187,7 @@ const affectionColor = computed(() => {
 }
 
 .label-text {
-  color: #475569;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -195,10 +195,10 @@ const affectionColor = computed(() => {
   font-family: 'Inter', monospace;
   font-weight: 700;
   font-size: 14px;
-  color: #334155;
+  color: var(--text-primary);
   transition: color 0.4s;
 }
-.label-val.pos { color: #10b981; }
+.label-val.pos { color: var(--status-success); }
 .label-val.neg { color: #ef4444; }
 
 .unit {

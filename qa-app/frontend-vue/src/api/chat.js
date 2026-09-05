@@ -262,11 +262,12 @@ export async function deleteConversation(id) {
  */
 export async function sendMessageStream(
   payload,
-  { onChunk, onState, onDone, onError } = {},
+  { onChunk, onState, onDone, onError, onProgress } = {},
 ) {
   if (isNativeApp) {
     return (await nativeRuntime()).sendNativeMessage(payload, {
       onChunk,
+      onProgress,
       onState,
       onDone,
       onError,
@@ -313,6 +314,7 @@ export async function sendMessageStream(
       try {
         const data = JSON.parse(dataLine);
         if (eventType === "chunk" && onChunk) onChunk(data.text);
+        if (eventType === "progress" && onProgress) onProgress(data);
         if (eventType === "state" && onState) onState(data);
         if (eventType === "done") {
           completed = true;
@@ -339,4 +341,17 @@ export async function testWebModelConnection(settings) {
     body: JSON.stringify({}),
   });
   return true;
+}
+
+export async function previewCharacter(characterSettings, question) {
+  if (isNativeApp) return (await nativeRuntime()).previewCharacter(characterSettings, question);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 65000);
+  try {
+    return (await request('/character/preview', {
+      method: 'POST', signal: controller.signal,
+      headers: webModelHeaders(),
+      body: JSON.stringify({ characterSettings, question }),
+    })).reply;
+  } finally { clearTimeout(timer); }
 }

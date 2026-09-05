@@ -1,3 +1,4 @@
+const { StringDecoder } = require('node:string_decoder');
 const axios = require('axios');
 const config = require('../config/config');
 const { getRequestModelConfig } = require('../middleware/modelConfigContext');
@@ -37,7 +38,7 @@ async function callLLM(messages, options = {}) {
     }
 
     // 带指数退避的重试逻辑（最多重试 2 次）
-    const maxRetries = 2;
+    const maxRetries = options.maxRetries ?? 2;
     let lastError;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
@@ -46,13 +47,14 @@ async function callLLM(messages, options = {}) {
                     'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json'
                 },
-                timeout
+                timeout,
+                signal: options.signal
             });
             return response.data;
         } catch (err) {
             lastError = err;
             const status = err.response?.status;
-            const isRetryable = !status || status >= 500 || err.code === 'ECONNABORTED';
+            const isRetryable = !options.signal?.aborted && (!status || status >= 500 || err.code === 'ECONNABORTED');
             if (isRetryable && attempt < maxRetries) {
                 const delay = Math.pow(2, attempt) * 1000; // 1s, 2s
                 console.warn(`[llmClient] 请求失败 (${err.message})，${delay}ms 后重试 (${attempt + 1}/${maxRetries})...`);
@@ -113,36 +115,39 @@ async function callLLMStream(messages, options = {}, onChunk, onDone) {
 
     let fullText = '';
     let buffer = '';
-
+    let terminal = false;
+    let finishReason = null;
+    const decoder = new StringDecoder('utf8');
     return new Promise((resolve, reject) => {
-        response.data.on('data', (chunk) => {
-            buffer += chunk.toString('utf-8');
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // 保留未完成的行
-
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed || trimmed === 'data: [DONE]') continue;
-                if (!trimmed.startsWith('data: ')) continue;
-
-                try {
-                    const json = JSON.parse(trimmed.slice(6));
-                    const delta = json.choices?.[0]?.delta?.content;
-                    if (delta) {
-                        fullText += delta;
-                        if (onChunk) onChunk(delta);
-                    }
-                } catch {
-                    // 忽略非 JSON 行
-                }
+        const consumeLine = line => {
+            const trimmed = line.trim();
+            if (trimmed === 'data: [DONE]') { terminal = true; return; }
+            if (!trimmed.startsWith('data:')) return;
+            let json;
+            try { json = JSON.parse(trimmed.slice(5).trim()); } catch { return; }
+            const choice = json.choices?.[0];
+            if (choice?.finish_reason) { finishReason = choice.finish_reason; terminal = true; }
+            const delta = choice?.delta?.content;
+            if (typeof delta === 'string') {
+                fullText += delta;
+                if (onChunk) onChunk(delta);
             }
+        };
+        response.data.on('data', chunk => {
+            buffer += decoder.write(chunk);
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) consumeLine(line);
         });
-
         response.data.on('end', () => {
+            consumeLine(buffer + decoder.end());
+            if (!terminal || (finishReason && finishReason !== 'stop')) {
+                reject(new Error('模型回复未完整结束，请重试；本轮状态未提交'));
+                return;
+            }
             if (onDone) onDone(fullText);
             resolve(fullText);
         });
-
         response.data.on('error', reject);
     });
 }

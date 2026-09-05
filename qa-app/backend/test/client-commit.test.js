@@ -1,0 +1,81 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+const pinia = require('../../frontend-vue/node_modules/pinia');
+const url = relative => pathToFileURL(path.resolve(__dirname, relative)).href;
+global.localStorage = { getItem: () => null };
+let source = fs.readFileSync(path.resolve(__dirname, '../../frontend-vue/src/store/chatStore.js'), 'utf8');
+source = source.replace('"pinia"', JSON.stringify(url('../../frontend-vue/node_modules/pinia/dist/pinia.mjs')))
+  .replace("'rp-core'", JSON.stringify(url('../../shared/runtime.cjs')))
+  .replace("'rp-prompt'", JSON.stringify(url('../../shared/prompt.cjs')))
+  .replace('"../api/chat"', JSON.stringify(url('./helpers/browser-api.mjs')));
+const load = Promise.all([import('data:text/javascript;base64,' + Buffer.from(source).toString('base64')), import(url('./helpers/browser-api.mjs'))]);
+async function fixture() {
+  const [{ useChatStore }, { control }] = await load;
+  const store = useChatStore(pinia.createPinia());
+  store.activeConversationId = 'chapter'; store.activeRelationshipId = 'relation';
+  store.conversations = [{ id: 'chapter', relationshipId: 'relation', status: 'open', title: '测试' }];
+  store.relationships = [{ id: 'relation', mode: 'free', chapters: store.conversations }];
+  store.characterSettings = { basicInfo: { name: '林舟' }, relationshipState: { affection: 10, mood: 0, relationshipStage: 'stranger' }, memory: { longTerm: ['原始事实'] } };
+  store.persistenceReady = true;
+  control.failSave = false; control.writes = [];
+  return { store, control };
+}
+test('client ignores intermediate state events if the terminal event never arrives', async () => {
+  const { store, control } = await fixture();
+  control.stream = async (_, cb) => { cb.onChunk('部分回复'); cb.onState?.({ relationshipState: { affection: 99 } }); throw Error('连接中断'); };
+  await store.sendMessage('你好');
+  assert.equal(store.characterSettings.relationshipState.affection, 10);
+  assert.deepEqual(store.apiHistory, []);
+  assert.deepEqual(store.characterSettings.memory.longTerm, ['原始事实']);
+  assert.equal(control.writes.at(-1).snapshot.characterSettings.relationshipState.affection, 10);
+});
+test('terminal event atomically commits history, relationship and continuity before persisting', async () => {
+  const { store, control } = await fixture();
+  const history = [{ role: 'user', content: '你好' }, { role: 'assistant', content: '你好朋友' }];
+  control.stream = async (_, cb) => { cb.onChunk('你好朋友'); cb.onDone({ history, relationshipState: { affection: 12, mood: 2, relationshipStage: 'stranger' }, memory: { longTerm: ['原始事实'], continuity: { location: '车站' } } }); };
+  await store.sendMessage('你好');
+  assert.equal(store.characterSettings.relationshipState.affection, 12);
+  assert.equal(store.characterSettings.memory.continuity.location, '车站');
+  assert.deepEqual(control.writes.at(-1).snapshot.apiHistory, history);
+});
+test('save failure prevents sending and rolls back explicit memory edits', async () => {
+  const { store, control } = await fixture();
+  control.failSave = true;
+  let calls = 0; control.stream = async () => { calls++; };
+  assert.equal(await store.sendMessage('你好'), false);
+  assert.equal(calls, 0); assert.equal(store.isSending, false);
+  assert.deepEqual(store.conversationHistory, []);
+  await assert.rejects(store.saveMemoryAndProgress({ longTerm: ['新事实'] }), /保存/);
+  assert.deepEqual(store.characterSettings.memory.longTerm, ['原始事实']);
+});
+test('archived and generating sessions refuse memory mutation', async () => {
+  const { store } = await fixture();
+  store.isSending = true;
+  await assert.rejects(store.saveMemoryAndProgress({ longTerm: [] }), /暂不可修改/);
+  store.isSending = false; store.conversations[0].status = 'closed';
+  await assert.rejects(store.saveMemoryAndProgress({ longTerm: [] }), /暂不可修改/);
+});
+test('send progress distinguishes replying and memory work without committing intermediate state', async () => {
+  const { store, control } = await fixture();
+  control.stream = async (_, cb) => {
+    assert.equal(store.sendPhase, 'preparing');
+    cb.onChunk('完整回复');
+    assert.equal(store.sendPhase, 'replying');
+    cb.onProgress({ phase: 'organizing' });
+    assert.equal(store.sendPhase, 'organizing');
+    assert.equal(store.isSending, true);
+    assert.equal(store.characterSettings.relationshipState.affection, 10);
+    cb.onDone({ history: [], relationshipState: { affection: 12, mood: 0, relationshipStage: 'stranger' } });
+  };
+  await store.sendMessage('你好');
+  assert.equal(store.sendPhase, '');
+  assert.equal(store.isSending, false);
+  assert.equal(store.characterSettings.relationshipState.affection, 12);
+  control.stream = async (_, cb) => { cb.onProgress({ phase: 'organizing' }); throw Error('整理时连接中断'); };
+  await store.sendMessage('再试一次');
+  assert.equal(store.sendPhase, '');
+  assert.equal(store.isSending, false);
+});

@@ -1,3 +1,6 @@
+import runtimeRules from 'rp-core';
+import prompts from 'rp-prompt';
+const { normalizeMemory, confirmRelationship, initialRelationshipState, historyTokens, estimateTokens, textContent } = runtimeRules;
 import { defineStore } from "pinia";
 import {
   createNextChapter as createNextChapterApi,
@@ -56,20 +59,6 @@ const freshRelationshipState = (state = null) => ({
   ...(cloneValue(state) || {}),
 });
 
-const relationshipStateForAffection = (state, affection) => {
-  const next = { ...(state || {}), affection };
-  if (affection > 90) next.relationshipStage = "life_partner";
-  else if (affection > 80) next.relationshipStage = "intimate";
-  else if (affection > 60) next.relationshipStage = "close";
-  else if (affection >= 25) next.relationshipStage = "familiar";
-  else next.relationshipStage = "stranger";
-  next.distance = {
-    stranger: "distant", familiar: "normal", close: "close",
-    intimate: "intimate", life_partner: "inseparable",
-  }[next.relationshipStage];
-  return next;
-};
-
 const randomInitialMood = () => Math.floor(Math.random() * 21) - 10;
 
 let saveTimer = null;
@@ -96,8 +85,10 @@ export const useChatStore = defineStore("chat", {
     modelParams: { temperature: 0.5, top_p: 0.7 },
 
     isSending: false,
+    sendPhase: "",
     streamingContent: "",
     stateChangeNotice: null,
+    continuityWarning: "",
     chapterSuggestion: null,
     isChapterSuggestionLoading: false,
     chapterSuggestionCheck: {
@@ -158,13 +149,7 @@ export const useChatStore = defineStore("chat", {
       );
     },
     contextUsage(state) {
-      const chars = (state.apiHistory || []).reduce((total, message) => {
-        const content = typeof message.content === "string"
-          ? message.content
-          : JSON.stringify(message.content || "");
-        return total + content.length + 32;
-      }, 0);
-      const tokens = Math.ceil(chars / 4);
+      const tokens = historyTokens(state.apiHistory) + estimateTokens(prompts.buildSystemPrompt(state.characterSettings));
       const ratio = Math.min(1, tokens / CONTEXT_TOKEN_LIMIT);
       return { tokens, ratio, percent: Math.round(ratio * 100) };
     },
@@ -355,6 +340,7 @@ export const useChatStore = defineStore("chat", {
     },
 
     _applyConversation(conversation) {
+      this.continuityWarning = "";
       const snapshot = conversation.snapshot || {};
       this._isHydratingConversation = true;
       this.activeConversationId = conversation.id;
@@ -385,6 +371,7 @@ export const useChatStore = defineStore("chat", {
         memory: cloneValue(this.characterSettings.memory),
       };
       this.isSending = false;
+      this.sendPhase = "";
       this.streamingContent = "";
       this.stateChangeNotice = null;
       this._resetChapterSuggestion();
@@ -445,7 +432,7 @@ export const useChatStore = defineStore("chat", {
         this.persistenceReady &&
         !this.isActiveChapterReadOnly
       ) {
-        await this.persistActiveConversation({ force: true });
+        if (!await this.persistActiveConversation({ force: true })) throw new Error(this.persistenceError || "保存会话失败");
       }
 
       let template = cloneValue(character);
@@ -466,13 +453,13 @@ export const useChatStore = defineStore("chat", {
       const affection = mode === "story" ? 0 : Number(initialAffection);
       const normalizedAffection = Number.isFinite(affection)
         ? Math.min(100, Math.max(0, Math.round(affection))) : 10;
-      template.relationshipState = relationshipStateForAffection(
-        template.relationshipState, normalizedAffection,
-      );
-      const resolvedInitialMood = Number.isFinite(Number(initialMood))
-        ? Math.min(10, Math.max(-10, Math.round(Number(initialMood))))
-        : randomInitialMood();
-      template.relationshipState.mood = resolvedInitialMood;
+      const resolvedInitialMood = inheritedSummary
+        ? template.relationshipState.mood
+        : initialMood != null && Number.isFinite(Number(initialMood))
+          ? Math.min(10, Math.max(-10, Math.round(Number(initialMood)))) : randomInitialMood();
+      if (!inheritedSummary) {
+        template.relationshipState = initialRelationshipState(template.relationshipState, normalizedAffection, resolvedInitialMood);
+      }
 
       const characterName = template.basicInfo?.name || "";
       const initialDefaults = {
@@ -541,9 +528,9 @@ export const useChatStore = defineStore("chat", {
 
     async createInheritedConversation() {
       if (!this.activeConversationId || this.isSending || this.isConversationLoading) return null;
-      await this.persistActiveConversation({ force: true });
-      const lastMessages = (this.apiHistory || []).slice(-12)
-        .map((message) => `${message.role === "user" ? "用户" : "角色"}：${String(message.content || "")}`)
+      if (!await this.persistActiveConversation({ force: true })) throw new Error(this.persistenceError || "保存会话失败");
+      const lastMessages = (this.apiHistory || []).filter((message, index, all) => message.role === "system" || index >= all.length - 12)
+        .map((message) => `${message.role === "user" ? "用户" : message.role === "system" ? "前情" : "角色"}：${textContent(message.content)}`)
         .join("\n");
       const memory = this.characterSettings.memory || {};
       const memoryText = [...(memory.longTerm || []), ...(memory.relationshipMemory || [])]
@@ -573,7 +560,7 @@ export const useChatStore = defineStore("chat", {
       ) {
         return null;
       }
-      await this.persistActiveConversation({ force: true });
+      if (!await this.persistActiveConversation({ force: true })) throw new Error(this.persistenceError || "保存会话失败");
       this.isConversationLoading = true;
       this.persistenceError = "";
       try {
@@ -730,7 +717,7 @@ export const useChatStore = defineStore("chat", {
         conversationId === this.activeConversationId &&
         !this.isActiveChapterReadOnly
       ) {
-        await this.persistActiveConversation({ force: true });
+        if (!await this.persistActiveConversation({ force: true })) throw new Error(this.persistenceError || "保存会话失败");
       }
       this.isConversationLoading = true;
       this.persistenceError = "";
@@ -765,7 +752,7 @@ export const useChatStore = defineStore("chat", {
     async closeActiveConversation() {
       if (this.isSending || this.isConversationLoading) return;
       if (this.activeConversationId && !this.isActiveChapterReadOnly) {
-        await this.persistActiveConversation({ force: true });
+        if (!await this.persistActiveConversation({ force: true })) throw new Error(this.persistenceError || "保存会话失败");
       }
       clearTimeout(saveTimer);
       saveTimer = null;
@@ -790,7 +777,7 @@ export const useChatStore = defineStore("chat", {
         return;
       }
       if (this.activeConversationId && !this.isActiveChapterReadOnly) {
-        await this.persistActiveConversation({ force: true });
+        if (!await this.persistActiveConversation({ force: true })) throw new Error(this.persistenceError || "保存会话失败");
       }
 
       this.isConversationLoading = true;
@@ -1016,7 +1003,7 @@ export const useChatStore = defineStore("chat", {
         this.persistenceReady &&
         !this.isActiveChapterReadOnly
       ) {
-        await this.persistActiveConversation({ force: true });
+        if (!await this.persistActiveConversation({ force: true })) throw new Error(this.persistenceError || "保存会话失败");
       }
       this._resetSessionState();
       this._applyCharacterTemplate(character);
@@ -1047,22 +1034,32 @@ export const useChatStore = defineStore("chat", {
       this.scheduleConversationSave();
     },
 
+    async saveMemoryAndProgress(memory, relationshipState = this.characterSettings.relationshipState) {
+      if (!this.activeConversationId || this.isSending || this.isConversationLoading || this.isActiveChapterReadOnly) {
+        throw new Error("当前存档暂不可修改，请等待回复完成或进入可编辑存档。");
+      }
+      const previous = cloneValue(this.characterSettings);
+      const conversationId = this.activeConversationId;
+      this.characterSettings = { ...this.characterSettings, memory: normalizeMemory(memory), relationshipState: cloneValue(relationshipState) };
+      if (!await this.persistActiveConversation({ force: true })) {
+        if (conversationId === this.activeConversationId) this.characterSettings = previous;
+        throw new Error(this.persistenceError || "保存失败");
+      }
+      this.continuityWarning = "";
+      return true;
+    },
+
+    async confirmRelationshipStage(stage, evidence) {
+      return this.saveMemoryAndProgress(this.characterSettings.memory,
+        confirmRelationship(this.characterSettings.relationshipState, stage, evidence));
+    },
+
     async addConfirmedStoryEvent(eventText) {
       const text = String(eventText || "").trim();
-      if (!text || !this.isStoryMode || !this.activeConversationId || this.isActiveChapterReadOnly) {
-        return false;
-      }
-      const memory = cloneValue(this.characterSettings.memory) || {
-        longTerm: [],
-        relationshipMemory: [],
-      };
-      const events = Array.isArray(memory.relationshipMemory)
-        ? memory.relationshipMemory : [];
-      if (!events.includes(text)) events.push(text);
-      memory.relationshipMemory = events.slice(-50);
-      this.characterSettings.memory = memory;
-      await this.persistActiveConversation({ force: true });
-      return true;
+      if (!text || !this.isStoryMode || text.length > 600) throw new Error("关键事件需填写 1～600 字。");
+      const memory = normalizeMemory(this.characterSettings.memory);
+      if (!memory.relationshipMemory.includes(text)) memory.relationshipMemory.push(text);
+      return this.saveMemoryAndProgress(memory);
     },
 
     async clearHistory() {
@@ -1190,19 +1187,21 @@ export const useChatStore = defineStore("chat", {
       ) {
         return;
       }
-      if (this.contextNoticeLevel === "hard") {
-        this.persistenceError = "上下文已接近上限，请先开启继承对话";
-        return;
+      this.isSending = true;
+      this.sendPhase = "preparing";
+      if (!await this.persistActiveConversation({ force: true })) {
+        this.isSending = false;
+        this.sendPhase = "";
+        return false;
       }
-      await this.persistActiveConversation({ force: true });
 
       if (this.chapterSuggestion) this.dismissChapterSuggestion();
       if (this.goalSuggestion) this.dismissGoalSuggestion();
 
       this.addMessage("user", question);
-      this.isSending = true;
       this.streamingContent = "";
       this.stateChangeNotice = null;
+      this.continuityWarning = "";
 
       const placeholderIndex = this.conversationHistory.length;
       this.conversationHistory.push({
@@ -1235,25 +1234,24 @@ export const useChatStore = defineStore("chat", {
       let responseCompleted = false;
       try {
         await sendMessageStream(payload, {
+          onProgress: ({ phase }) => {
+            if (phase === "organizing") this.sendPhase = phase;
+          },
           onChunk: (text) => {
+            this.sendPhase = "replying";
             this.streamingContent += text;
             this.conversationHistory[placeholderIndex] = {
               ...this.conversationHistory[placeholderIndex],
               content: this.streamingContent,
             };
           },
-          onState: ({ relationshipState, stateChange }) => {
-            if (relationshipState) {
-              this.characterSettings.relationshipState = relationshipState;
-            }
-            if (stateChange) {
-              this.stateChangeNotice = stateChange;
-              setTimeout(() => {
-                this.stateChangeNotice = null;
-              }, 5000);
-            }
-          },
-          onDone: ({ history, memory }) => {
+          // Commit only with the terminal event, so interrupted SSE cannot partially update a save.
+          onDone: ({ history, memory, relationshipState, stateChange, continuityWarning }) => {
+            if (relationshipState) this.characterSettings.relationshipState = relationshipState;
+            this.stateChangeNotice = stateChange || null;
+            const notice = this.stateChangeNotice;
+            if (notice) setTimeout(() => { if (this.stateChangeNotice === notice) this.stateChangeNotice = null; }, 5000);
+            this.continuityWarning = continuityWarning || "";
             responseCompleted = true;
             this.conversationHistory[placeholderIndex] = {
               ...this.conversationHistory[placeholderIndex],
@@ -1280,6 +1278,7 @@ export const useChatStore = defineStore("chat", {
         };
       } finally {
         this.isSending = false;
+        this.sendPhase = "";
         this.streamingContent = "";
         const saved = await this.persistActiveConversation({ force: true });
         if (responseCompleted && saved) {

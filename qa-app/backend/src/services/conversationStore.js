@@ -1,3 +1,4 @@
+const { initialRelationshipState } = require("../../../shared/runtime.cjs");
 const fs = require("fs");
 const path = require("path");
 const { randomUUID } = require("crypto");
@@ -54,26 +55,6 @@ function relationshipRuntimeFromSnapshot(snapshot = {}) {
     ),
     initialMemory: clone(defaults.memory ?? settings.memory ?? null),
   };
-}
-
-function relationshipStateForAffection(state, affection, mood = null) {
-  const next = { ...(state || {}), affection };
-  if (mood !== null && Number.isFinite(Number(mood))) {
-    next.mood = Math.min(10, Math.max(-10, Math.round(Number(mood))));
-  }
-  if (affection > 90) next.relationshipStage = "life_partner";
-  else if (affection > 80) next.relationshipStage = "intimate";
-  else if (affection > 60) next.relationshipStage = "close";
-  else if (affection >= 25) next.relationshipStage = "familiar";
-  else next.relationshipStage = "stranger";
-  next.distance = {
-    stranger: "distant",
-    familiar: "normal",
-    close: "close",
-    intimate: "intimate",
-    life_partner: "inseparable",
-  }[next.relationshipStage];
-  return next;
 }
 
 function checkpointFromSnapshot(snapshot, summary = "") {
@@ -489,18 +470,11 @@ function createRelationship(input = {}) {
       : `${characterName} · 自由聊天`,
   );
   const snapshot = clone(input.snapshot);
-  if (mode === "free" || (mode === "story" && (!input.forkedFromRelationshipId || input.inheritedSummary))) {
-    const requestedAffection = mode === "story" && !input.inheritedSummary
-      ? 0 : Number(input.initialAffection);
-    const affection = Number.isFinite(requestedAffection)
-      ? Math.min(100, Math.max(0, Math.round(requestedAffection)))
-      : 10;
-    const requestedMood = input.initialMood === undefined
-      ? Math.floor(Math.random() * 21) - 10
-      : Number(input.initialMood);
-    const state = relationshipStateForAffection(runtime.relationshipState, affection, requestedMood);
+  if (!input.forkedFromRelationshipId && !input.inheritedSummary) {
+    const affection = mode === "story" ? 0 : input.initialAffection;
+    const state = initialRelationshipState(runtime.relationshipState, affection, input.initialMood);
     runtime.relationshipState = state;
-    runtime.initialState = relationshipStateForAffection(runtime.initialState, affection, state.mood);
+    runtime.initialState = initialRelationshipState(runtime.initialState, state.affection, state.mood);
     snapshot.characterSettings = {
       ...(snapshot.characterSettings || {}),
       relationshipState: state,

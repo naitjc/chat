@@ -3,6 +3,9 @@
 /* ===================== 主题变量 ===================== */
 :root,
 [data-theme="default"] {
+    --panel-bg: #f6f5fc;
+    --action-color: #6261c9;
+    --status-success: #287653;
     --primary: #7c83fd;
     --primary-light: #a78bfa;
     --accent: #f472b6;
@@ -15,13 +18,13 @@
     );
     --bg-glass: rgba(255, 255, 255, 0.26);
     --bg-glass-hover: rgba(255, 255, 255, 0.38);
-    --bg-glass-card: rgba(248, 248, 255, 0.3);
+    --bg-glass-card: rgba(248, 248, 255, 0.58);
     --border-glass: rgba(255, 255, 255, 0.38);
     --border-glass-strong: rgba(255, 255, 255, 0.55);
 
     --text-primary: #1e293b;
     --text-secondary: #64748b;
-    --text-muted: #94a3b8;
+    --text-muted: #63718a;
     --text-accent: #4c4f8f;
 
     --user-bubble-bg: linear-gradient(135deg, #7c83fd 0%, #9d72fb 100%);
@@ -47,6 +50,9 @@
 }
 
 [data-theme="dark"] {
+    --panel-bg: #202035;
+    --action-color: #818cf8;
+    --status-success: #72d3a1;
     --primary: #818cf8;
     --primary-light: #a78bfa;
     --accent: #f472b6;
@@ -65,7 +71,7 @@
 
     --text-primary: #e2e8f0;
     --text-secondary: #94a3b8;
-    --text-muted: #64748b;
+    --text-muted: #a1acc0;
     --text-accent: #a5b4fc;
 
     --user-bubble-bg: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
@@ -87,6 +93,8 @@
 }
 
 [data-theme="sakura"] {
+    --panel-bg: #fff1f6;
+    --action-color: #ac3f70;
     --primary: #e879a0;
     --primary-light: #f9a8d4;
     --accent: #fb7185;
@@ -105,7 +113,7 @@
 
     --text-primary: #4a1028;
     --text-secondary: #9d4066;
-    --text-muted: #c88aa0;
+    --text-muted: #86435f;
     --text-accent: #be185d;
 
     --user-bubble-bg: linear-gradient(135deg, #e879a0 0%, #fb7185 100%);
@@ -127,6 +135,8 @@
 }
 
 [data-theme="ocean"] {
+    --panel-bg: #edf6fe;
+    --action-color: #126c9b;
     --primary: #0ea5e9;
     --primary-light: #38bdf8;
     --accent: #06b6d4;
@@ -145,7 +155,7 @@
 
     --text-primary: #0c2340;
     --text-secondary: #1e6fa8;
-    --text-muted: #7ab3d0;
+    --text-muted: #3f678a;
     --text-accent: #0369a1;
 
     --user-bubble-bg: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
@@ -268,4 +278,50 @@ mark.search-highlight {
     color: inherit;
     border-radius: 2px;
     padding: 0 1px;
+}
+
+/* Element Plus surfaces share the application's palette, including teleported panels. */
+:root[data-theme] {
+    --el-color-primary: var(--action-color);
+    --el-color-primary-light-3: color-mix(in srgb, var(--action-color) 70%, var(--panel-bg));
+    --el-color-primary-light-5: color-mix(in srgb, var(--action-color) 50%, var(--panel-bg));
+    --el-color-primary-light-7: color-mix(in srgb, var(--action-color) 25%, var(--panel-bg));
+    --el-color-primary-light-8: color-mix(in srgb, var(--action-color) 18%, var(--panel-bg));
+    --el-color-primary-light-9: color-mix(in srgb, var(--action-color) 10%, var(--panel-bg));
+    --el-color-primary-dark-2: var(--action-color);
+    --el-bg-color: var(--panel-bg);
+    --el-bg-color-overlay: var(--panel-bg);
+    --el-fill-color-blank: var(--panel-bg);
+    --el-fill-color-light: var(--bg-glass-hover);
+    --el-fill-color: var(--bg-glass);
+    --el-fill-color-lighter: var(--bg-glass);
+    --el-text-color-primary: var(--text-primary);
+    --el-text-color-regular: var(--text-primary);
+    --el-text-color-secondary: var(--text-secondary);
+    --el-text-color-placeholder: var(--text-muted);
+    --el-text-color-disabled: var(--text-muted);
+    --el-border-color: color-mix(in srgb, var(--text-primary) 18%, transparent);
+    --el-border-color-light: var(--border-glass);
+    --el-border-color-lighter: var(--border-glass);
+    --el-disabled-bg-color: var(--bg-glass);
+    --el-disabled-text-color: var(--text-muted);
+    --el-border-radius-base: 10px;
+    --el-border-radius-small: 8px;
+    --el-mask-color: var(--panel-bg);
+}
+.el-button { font-weight: 500; }
+.el-button:not(.is-circle) { border-radius: 10px; }
+.el-button:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--action-color);
+    outline-offset: 3px;
+}
+.el-dialog, .el-message-box { border-radius: 18px; color: var(--text-primary); }
+.el-message-box { max-width: calc(100vw - 32px); }
+.el-dialog__title, .el-message-box__title { font-weight: 600; }
+@media (max-width: 800px) {
+    .el-button { min-height: 36px; }
+    .el-button--small { min-height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

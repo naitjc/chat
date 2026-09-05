@@ -34,7 +34,7 @@ const CharacterWizard = defineAsyncComponent(() => import('./CharacterWizard.vue
 
 defineProps({
   isMobile: { type: Boolean, default: false },
-  settingsOpen: { type: Boolean, default: true },
+  settingsOpen: { type: Boolean, default: false },
   conversationsOpen: { type: Boolean, default: true },
 })
 
@@ -89,9 +89,9 @@ const guideSections = [
   },
   {
     title: '手机界面怎么用',
-    summary: '手机顶部保留教程、存档和更多三个入口，角色设置则直接通过头像打开。',
+    summary: '手机顶部保留存档和更多入口，点击角色头像打开设置。',
     steps: [
-      { title: '教程', detail: '顶部书本按钮随时打开本指南，不需要先进入“更多”。可以使用章节选择器快速跳到需要的说明。' },
+      { title: '教程', detail: '在“更多”中点击“使用教程”，可以使用章节选择器快速跳到需要的说明。' },
       { title: '存档', detail: '顶部文件夹按钮用于打开存档与章节。选择内容后会自动返回聊天，不需要手动关闭。' },
       { title: '角色设置', detail: '点击顶部的角色头像，可以查看和修改当前存档中的角色信息。必须先打开一个存档才能使用。' },
       { title: '更多', detail: '三点菜单包含角色切换、创建角色、消息搜索、头像、主题、背景、模型参数、导出和 Android 模型 API 设置。' },
@@ -104,8 +104,8 @@ const guideSections = [
     title: '好感度、情绪与关系',
     summary: '这些状态会改变角色的语气和亲疏，但不会替你决定剧情。',
     steps: [
-      { title: '好感度', detail: '好感度越高，角色通常越信任、主动和亲近；较低时会更谨慎、有距离感。范围是 0～100。' },
-      { title: '关系阶段', detail: '0～24 素昧平生，25～60 泛泛之交，61～80 志同道合，81～90 亲密无间，91～100 相濡以沫。' },
+      { title: '好感度', detail: '好感度表示喜欢的程度，范围是 0～100；数值变化不会越过已确认的关系边界。' },
+      { title: '关系阶段', detail: '新存档从初识或熟悉开始；高好感不会自动升级为信任、亲密或伴侣。打开聊天顶部的记忆面板→“关系”→“调整关系”，填写已发生的依据并确认关系阶段。旧存档阶段保持不变。' },
       { title: '情绪', detail: '情绪影响当前回复的轻快、耐心、克制或低落程度。新建存档时会生成初始情绪，之后随互动变化。' },
       { title: '在哪里查看', detail: '打开角色设置，在状态卡片中点击“查看状态”。数值保存在当前存档中，不会影响其他存档。' },
       { title: '状态如何变化', detail: '角色回复完成后，系统会根据本轮互动更新状态。短暂波动是正常的，长期关系更适合从连续多轮互动判断。' },
@@ -116,7 +116,7 @@ const guideSections = [
     title: '故事、章节与分支',
     summary: '故事由你推动，系统只负责保存结构和提出建议。',
     steps: [
-      { title: '查看故事状态', detail: '聊天顶部显示目标和上下文；点击“展开故事信息”可查看章节回顾、章节进度和已确认事件。' },
+      { title: '查看故事状态', detail: '点击聊天顶部“故事与记忆”，查看或修改最终目标、阅读章节回顾，并管理记忆与事项。' },
       { title: '进入下一章', detail: '模型可能在自然收束点给出建议，你也可以在存档抽屉中手动点击“结束本章，进入下一章”。' },
       { title: '过去章节', detail: '结束后的章节是只读的，不能继续发送消息，避免历史内容被意外改写。' },
       { title: '创建分支', detail: '打开过去章节并选择“从这里创建分支故事”，即可继承当时的角色、关系、记忆和目标，之后独立发展。' },
@@ -128,9 +128,9 @@ const guideSections = [
     title: '关键事件与记忆',
     summary: '只把真正重要、已经发生的事实写入长期故事记忆。',
     steps: [
-      { title: '打开入口', detail: '故事模式中展开故事信息，点击“确认关键事件”。' },
+      { title: '打开入口', detail: '聊天顶部打开“记忆与进展”（故事模式为“故事与记忆”），先查看已保存内容，再点击编辑按钮修改记忆、场景或事项。重要事件可记录在“记忆”页的共同经历中。' },
       { title: '写清事实', detail: '写成明确结果，例如“我们约定下周一起调查旧车站”，不要只写“车站”或尚未发生的计划。' },
-      { title: '保存后的作用', detail: '该事件会出现在故事状态中，并在后续章节或继承对话中继续提供给角色。' },
+      { title: '保存后的作用', detail: '已确认记忆会在后续章节或继承对话中继续提供给角色；约定的完成、取消请在“事项”页中更新。' },
       { title: '为什么不自动记忆', detail: '普通闲聊不会自动成为长期事实，这样可以避免误解、玩笑或模型猜测污染后续剧情。' },
     ],
     tip: '少而准确的关键事件，比大量零碎记录更能保持角色和故事一致。',
@@ -139,8 +139,8 @@ const guideSections = [
     title: '上下文与继承对话',
     summary: '对话很长时，用继承功能保留重点并释放可用上下文。',
     steps: [
-      { title: '查看占用', detail: '聊天顶部显示估算的上下文百分比。它根据文本长度估算，不等同于服务商的精确 token 账单。' },
-      { title: '何时处理', detail: '大约 70%、85% 和 95% 时会分级提醒；接近上限后，新消息可能无法继续发送。' },
+      { title: '容量提醒', detail: '上下文占用升高时，聊天顶部显示容量提醒。估算计入设定、记忆及中英文文本，不等同于服务商的精确 token 账单。' },
+      { title: '何时处理', detail: '近期对话按容量自动整理，原始聊天记录保留；70%、85% 和 95% 时分级提醒。若设定或长期记忆本身过长，需要手动精简。' },
       { title: '开启并继承', detail: '点击提醒中的“开启并继承”，系统会创建新存档并带上角色设定、关系、长期记忆、故事目标和最近对话摘要。' },
       { title: '旧存档仍保留', detail: '继承不会删除原存档。你可以回到旧存档查看完整历史，也可以继续使用新存档聊天。' },
     ],
@@ -474,7 +474,6 @@ const displayName = computed(() => {
 
       <template v-if="chatStore.characterSettings.basicInfo.name">
         <el-button
-          v-if="isMobile"
           class="header-avatar-button"
           :class="{ active: settingsOpen }"
           :disabled="!chatStore.activeConversationId"
@@ -485,22 +484,12 @@ const displayName = computed(() => {
         >
           <el-avatar :src="chatStore.characterSettings.avatar" :size="30" class="header-avatar" />
         </el-button>
-        <el-avatar v-else :src="chatStore.characterSettings.avatar" :size="34" class="header-avatar" />
       </template>
 
       <span class="header-char-name">{{ displayName || '选择角色' }}</span>
     </div>
 
     <div class="header-right">
-      <el-tooltip content="使用教程" placement="bottom">
-        <el-button
-          :icon="Reading"
-          :class="isMobile ? 'icon-btn' : 'guide-button'"
-          aria-label="教程"
-          @click="openGuide"
-        >{{ isMobile ? '' : '教程' }}</el-button>
-      </el-tooltip>
-
       <el-tooltip :content="conversationsOpen ? '收起聊天存档' : '展开聊天存档'" placement="bottom">
         <el-button
           :icon="ChatLineRound"
@@ -508,17 +497,6 @@ const displayName = computed(() => {
           :class="{ active: conversationsOpen }"
           aria-label="聊天存档"
           @click="emit('toggle-conversations')"
-        />
-      </el-tooltip>
-
-      <el-tooltip v-if="!isMobile" :content="settingsOpen ? '收起角色设置' : '展开角色设置'" placement="bottom">
-        <el-button
-          :icon="Setting"
-          class="icon-btn"
-          :class="{ active: settingsOpen }"
-          :disabled="!chatStore.activeConversationId"
-          aria-label="角色设置"
-          @click="emit('toggle-settings')"
         />
       </el-tooltip>
 
@@ -555,6 +533,13 @@ const displayName = computed(() => {
         </template>
 
         <div class="more-menu">
+          <section class="menu-section">
+            <div class="menu-actions-grid single-action">
+              <el-button class="menu-action" @click="openGuide">
+                <el-icon><Reading /></el-icon><span>使用教程</span>
+              </el-button>
+            </div>
+          </section>
           <section v-if="isMobile" class="menu-section">
             <div class="menu-section-title">查找</div>
             <div class="menu-actions-grid single-action">
@@ -767,7 +752,7 @@ const displayName = computed(() => {
     </template>
   </el-dialog>
 
-  <el-drawer v-model="guideOpen" title="Chat RP 使用指南" :direction="isMobile ? 'btt' : 'rtl'" :size="isMobile ? '94%' : 'min(760px, 92vw)'" class="guide-drawer">
+  <el-drawer v-model="guideOpen" title="Chat RP 使用指南" :direction="isMobile ? 'btt' : 'rtl'" :size="isMobile ? '94dvh' : 'min(760px, 92vw)'" class="guide-drawer">
     <div class="guide-layout">
       <nav v-if="!isMobile" class="guide-nav" aria-label="教程章节">
         <button v-for="(section, index) in guideSections" :key="section.title" type="button" :class="{ active: activeGuideSection === index }" @click="activeGuideSection = index">
@@ -827,14 +812,14 @@ const displayName = computed(() => {
 }
 .guide-button { padding-inline: 10px; }
 
-.guide-layout { display: flex; gap: 20px; min-height: 100%; }
-.guide-nav { width: 180px; flex: 0 0 180px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--border-glass); padding-right: 14px; }
+.guide-layout { display: flex; gap: 20px; height: 100%; min-height: 0; overflow: hidden; }
+.guide-nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; width: 180px; flex: 0 0 180px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--border-glass); padding-right: 14px; }
 .guide-nav button { border: 0; border-radius: 8px; padding: 9px 10px; text-align: left; background: transparent; color: var(--text-secondary); cursor: pointer; font: inherit; font-size: 12px; }
 .guide-nav button span { display: inline-block; width: 26px; color: var(--text-muted); font-size: 10px; }
 .guide-nav button:hover, .guide-nav button.active { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--text-primary); }
 .guide-nav button.active span { color: var(--primary); }
 
-.guide-content { min-width: 0; flex: 1; max-height: min(72vh, 680px); overflow-y: auto; padding-right: 8px; color: var(--text-secondary); line-height: 1.65; }
+.guide-content { min-width: 0; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-wrap: anywhere; padding-right: 8px; color: var(--text-secondary); line-height: 1.65; }
 .guide-content section { padding: 10px 0; border-top: 1px solid var(--border-glass); }
 .guide-content h3 { margin: 0 0 6px; color: var(--text-primary); font-size: 20px; }
 .guide-content p { margin: 4px 0; font-size: 13px; }
@@ -849,9 +834,7 @@ const displayName = computed(() => {
 .guide-tip strong { color: #b45309; }
 .guide-mobile-select { width: 100%; flex-shrink: 0; }
 
-:deep(.guide-drawer .el-drawer__body) { padding: 18px; }
-
-@media (max-width: 600px) {
+@media (max-width: 800px) {
   .guide-layout { height: 100%; flex-direction: column; gap: 12px; }
   .guide-content { max-height: none; flex: 1; padding-right: 2px; }
   .guide-content h3 { font-size: 18px; }
@@ -1155,6 +1138,19 @@ const displayName = computed(() => {
 </style>
 
 <style>
+.guide-drawer { max-width: 100vw; max-height: 100dvh; }
+.guide-drawer .el-drawer__header {
+  flex-shrink: 0;
+  margin-bottom: 0;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-glass);
+}
+.guide-drawer .el-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px;
+}
 @media (max-width: 800px) {
   .app-more-popover {
     max-width: calc(100vw - 20px) !important;

@@ -253,7 +253,7 @@ const avatarSrc = computed(() => {
     line-height: 1.65;
   }
 
-  .message-header { font-size: 10px; }
+  .message-header { font-size: 11px; }
   .bookmark-icon { opacity: 0.55; }
 }
 </style>

@@ -1,10 +1,11 @@
 <script setup>
 import { ref, watch, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, ArrowDown } from '@element-plus/icons-vue'
 import { useChatStore } from '../store/chatStore'
 import MessageBubble from './chat/MessageBubble.vue'
 import MessageInput from './chat/MessageInput.vue'
+import MemoryProgress from './MemoryProgress.vue'
 
 const props = defineProps({
   isMobile: { type: Boolean, default: false },
@@ -15,31 +16,38 @@ const chatBoxRef = ref(null)
 const isAcceptingSuggestion = ref(false)
 const isConfirmingGoal = ref(false)
 const isCreatingInheritedConversation = ref(false)
-const storyDetailsOpen = ref(false)
+const followLatest = ref(true)
+const hasUnread = ref(false)
+const onTranscriptScroll = () => {
+  const element = chatBoxRef.value
+  if (!element) return
+  followLatest.value = element.scrollHeight - element.scrollTop - element.clientHeight <= 72
+  if (followLatest.value) hasUnread.value = false
+}
 
 const scrollToBottom = async () => {
+  followLatest.value = true
+  hasUnread.value = false
   await nextTick()
   if (chatBoxRef.value) {
     chatBoxRef.value.scrollTop = chatBoxRef.value.scrollHeight
   }
 }
 
-// 自动滚动到底部：历史变化或正在发送时
-watch(() => chatStore.conversationHistory, () => {
-  if (!chatStore.showSearch) scrollToBottom() // 搜索模式下尽量不自动滚动以免干扰
-}, { deep: true })
-watch(() => chatStore.isSending, () => { scrollToBottom() })
-
-// 返回搜索词高亮过滤后的消息列表
-const displayMessages = computed(() => chatStore.filteredHistory)
-const chapterRecap = computed(() => {
-  const summary = chatStore.activeConversation?.summary
-  if (summary) return summary
-  const continuity = (chatStore.apiHistory || []).find(
-    (message) => message.role === 'system' && String(message.content || '').startsWith('[上一章提要]'),
-  )
-  return continuity?.content?.replace(/^\[上一章提要\]\s*/, '') || '本章正在进行中，结束章节时会生成回顾。'
+// Follow new text only while the reader is already near the end.
+watch(() => [chatStore.conversationHistory.length, chatStore.conversationHistory.at(-1)?.content], () => {
+  if (chatStore.showSearch) return
+  if (followLatest.value) scrollToBottom()
+  else hasUnread.value = true
 })
+watch(() => chatStore.activeConversationId, () => scrollToBottom(), { immediate: true })
+watch(() => chatStore.isSending, sending => { if (sending && !chatStore.showSearch) scrollToBottom() })
+watch(() => chatStore.showSearch, searching => {
+  if (searching) hasUnread.value = false
+  else scrollToBottom()
+})
+const displayMessages = computed(() => chatStore.filteredHistory)
+const sendStatus = computed(() => ({ preparing: '正在准备回复…', replying: '正在回复…', organizing: '正在整理记忆…' })[chatStore.sendPhase] || '正在回复…')
 
 const stateNoticeItems = computed(() => {
   const sc = chatStore.stateChangeNotice
@@ -51,10 +59,6 @@ const stateNoticeItems = computed(() => {
   else if (sc.moodDelta < 0) parts.push(`😔 情绪 ${sc.moodDelta}`)
   return parts
 })
-
-const onSearchInput = (e) => {
-  chatStore.setSearch(e.target.value)
-}
 
 const toggleBookmark = (message) => {
   const originalIndex = chatStore.conversationHistory.indexOf(message)
@@ -135,29 +139,6 @@ const confirmGoalAchievement = async () => {
   }
 }
 
-const confirmStoryEvent = async () => {
-  try {
-    const { value } = await ElMessageBox.prompt(
-      '只记录你明确确认的事实，例如“我们约定下周一起调查旧车站”。这条内容会作为故事记忆继承到后续章节。',
-      '确认关键事件',
-      {
-        inputType: 'textarea',
-        inputPattern: /\S+/,
-        inputErrorMessage: '关键事件不能为空',
-        confirmButtonText: '保存事件',
-        cancelButtonText: '取消',
-      },
-    )
-    if (await chatStore.addConfirmedStoryEvent(value)) {
-      ElMessage.success('关键事件已加入故事记忆')
-    }
-  } catch (error) {
-    if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(error.message || '保存关键事件失败')
-    }
-  }
-}
-
 const createInheritedConversation = async () => {
   isCreatingInheritedConversation.value = true
   try {
@@ -200,74 +181,24 @@ const createInheritedConversation = async () => {
       </div>
     </Transition>
 
-    <div
-      v-if="chatStore.activeRelationship"
-      class="mode-context"
-      :class="chatStore.isStoryMode ? 'story' : 'free'"
-    >
-      <span class="mode-context-badge">
-        {{ chatStore.isStoryMode ? '🎯 故事模式 Beta · 测试版' : '☁️ 自由模式' }}
-      </span>
-      <span v-if="chatStore.isStoryMode" class="mode-context-copy">
-        最终目标：{{ chatStore.activeRelationship.goal || '尚未设置' }}
-        · {{ chatStore.activeRelationship.goalStatus === 'achieved' ? '已达成' : '进行中' }}
-      </span>
-      <span
-        class="context-usage-indicator"
-        :class="chatStore.contextNoticeLevel"
-        :title="`估算上下文：${chatStore.contextUsage.tokens.toLocaleString()} tokens`"
-      >
-        上下文 {{ chatStore.contextUsage.percent }}%
-        <small>{{ chatStore.contextUsage.tokens.toLocaleString() }} tokens</small>
-      </span>
-    </div>
-
-    <section v-if="chatStore.isStoryMode" class="story-status-panel" :class="{ compact: props.isMobile }">
-      <div class="story-status-header">
-        <div>
-          <span class="story-status-kicker">故事状态</span>
-          <strong>{{ chatStore.activeConversation?.title || '当前章节' }}</strong>
-        </div>
-        <el-button v-if="props.isMobile" size="small" text @click="storyDetailsOpen = !storyDetailsOpen">
-          {{ storyDetailsOpen ? '收起' : '展开故事信息' }}
-        </el-button>
+    <header v-if="chatStore.activeRelationship" class="conversation-context">
+      <div class="conversation-heading">
+        <span class="conversation-mode">{{ chatStore.isStoryMode ? `故事 · 第 ${chatStore.activeConversation?.chapterNumber || 1} 章` : '自由聊天' }}</span>
+        <span class="conversation-title" :title="chatStore.activeConversation?.title">{{ chatStore.activeConversation?.title || '新的对话' }}</span>
       </div>
-      <div v-show="!props.isMobile || storyDetailsOpen" class="story-status-body">
-        <div class="story-status-actions">
-          <el-button size="small" plain @click="confirmStoryEvent">确认关键事件</el-button>
-        </div>
-        <div class="story-status-grid">
-          <div class="story-status-item">
-            <span>最终目标</span>
-            <strong>{{ chatStore.activeRelationship.goal || '尚未设置' }}</strong>
-          </div>
-          <div class="story-status-item">
-            <span>章节进度</span>
-            <strong>第 {{ chatStore.activeConversation?.chapterNumber || 1 }} 章 · {{ chatStore.activeRelationship.chapters?.length || 1 }} 章</strong>
-          </div>
-        </div>
-        <div class="story-recap">
-          <span>章节回顾</span>
-          <p>{{ chapterRecap }}</p>
-        </div>
-        <div v-if="chatStore.characterSettings.memory?.relationshipMemory?.length" class="story-events">
-          <span>已确认事件</span>
-          <ul>
-            <li v-for="event in chatStore.characterSettings.memory.relationshipMemory.slice(-3)" :key="event">{{ event }}</li>
-          </ul>
-        </div>
-      </div>
-    </section>
+      <MemoryProgress />
+    </header>
+    <p v-if="chatStore.continuityWarning" role="status" class="continuity-warning">{{ chatStore.continuityWarning }}</p>
 
     <Transition name="chapter-suggestion">
       <aside v-if="chatStore.contextNoticeLevel !== 'normal'" class="context-capacity-notice" :class="chatStore.contextNoticeLevel" aria-live="polite">
         <span class="chapter-suggestion-icon">{{ chatStore.contextNoticeLevel === 'hard' ? '⛔' : '🧠' }}</span>
         <div class="chapter-suggestion-copy">
           <strong>
-            {{ chatStore.contextNoticeLevel === 'hard' ? '记忆容量已接近极限' : '记忆正在变得庞大' }}
+            {{ chatStore.contextNoticeLevel === 'hard' ? '上下文占用较高' : '上下文占用提醒' }}
           </strong>
           <span>
-            {{ chatStore.characterSettings.basicInfo?.name || '角色' }}的前情记录已使用约 {{ chatStore.contextUsage.percent }}%，可以开启一段继承对话。
+            {{ chatStore.characterSettings.basicInfo?.name || '角色' }}的前情记录已使用约 {{ chatStore.contextUsage.percent }}%。发送时会自动整理较早对话，也可以开启继承对话。
           </span>
         </div>
         <div class="chapter-suggestion-actions">
@@ -291,9 +222,11 @@ const createInheritedConversation = async () => {
     </div>
 
     <!-- 聊天消息区域 -->
+    <div class="transcript-wrapper">
     <div
       ref="chatBoxRef"
       class="chat-messages-container"
+      @scroll="onTranscriptScroll"
       :style="chatStore.chatBackground ? { backgroundImage: `url(${chatStore.chatBackground})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
     >
       <div class="message-stream">
@@ -333,6 +266,9 @@ const createInheritedConversation = async () => {
           </div>
         </Transition>
       </div>
+    </div>
+
+    <el-button v-if="hasUnread && !chatStore.showSearch" class="jump-latest" :icon="ArrowDown" @click="scrollToBottom">有新消息 · 回到底部</el-button>
     </div>
 
     <Transition name="chapter-suggestion">
@@ -388,14 +324,31 @@ const createInheritedConversation = async () => {
       </aside>
     </Transition>
 
+    <div v-if="chatStore.isSending" class="send-progress" role="status" aria-live="polite"><span class="progress-dot" aria-hidden="true"></span>{{ sendStatus }}</div>
     <!-- 输入区域 -->
     <MessageInput />
   </el-card>
 </template>
 
 <style scoped>
+.conversation-context { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 22px; border-bottom: 1px solid var(--border-glass); flex-shrink: 0; background: var(--bg-glass); }
+.conversation-heading { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.conversation-mode { font-size: 12px; color: var(--text-secondary); }
+.conversation-title { color: var(--text-primary); font-size: 15px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.transcript-wrapper { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.jump-latest { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); box-shadow: var(--shadow-md); background: var(--panel-bg); z-index: 2; }
+.send-progress { padding: 8px 22px; display: flex; gap: 8px; align-items: center; color: var(--text-secondary); font-size: 12px; }
+.progress-dot { width: 6px; height: 6px; background: var(--primary); border-radius: 50%; }
+@media (max-width: 800px) {
+  .conversation-context { padding: 12px; gap: 8px; }
+  .conversation-title { font-size: 14px; }
+  .send-progress { padding: 6px 12px; }
+}
+
+.continuity-warning { margin: 8px 16px; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
 .chat-main-card {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -409,26 +362,6 @@ const createInheritedConversation = async () => {
   position: relative;
 }
 
-.story-status-panel {
-  margin: 10px 16px 0;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, #7c3aed 20%, var(--border-glass));
-  border-radius: 12px;
-  background: color-mix(in srgb, #7c3aed 5%, var(--bg-glass-card));
-  color: var(--text-primary);
-  flex-shrink: 0;
-}
-.story-status-header, .story-status-grid { display: flex; justify-content: space-between; gap: 14px; }
-.story-status-header { align-items: center; }
-.story-status-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
-.story-status-header strong, .story-status-item strong { display: block; margin-top: 3px; font-size: 12px; }
-.story-status-kicker, .story-status-item > span, .story-recap > span, .story-events > span { color: var(--text-muted); font-size: 10px; }
-.story-status-grid { margin-top: 10px; }
-.story-status-item { min-width: 0; flex: 1; }
-.story-status-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.story-recap, .story-events { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border-glass); }
-.story-recap p { margin: 4px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
-.story-events ul { margin: 5px 0 0; padding-left: 16px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
 .context-capacity-notice { margin: 10px 12px 0; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid color-mix(in srgb, #f59e0b 28%, var(--border-glass)); border-radius: 12px; background: color-mix(in srgb, #f59e0b 9%, var(--bg-glass)); }
 .context-capacity-notice.high { border-color: color-mix(in srgb, #f97316 35%, var(--border-glass)); background: color-mix(in srgb, #f97316 10%, var(--bg-glass)); }
 .context-capacity-notice.hard { border-color: color-mix(in srgb, #ef4444 40%, var(--border-glass)); background: color-mix(in srgb, #ef4444 10%, var(--bg-glass)); }
@@ -459,7 +392,6 @@ const createInheritedConversation = async () => {
   transform: translateY(-20px);
 }
 
-.mode-context,
 .readonly-notice {
   padding: 10px 14px;
   display: flex;
@@ -470,22 +402,6 @@ const createInheritedConversation = async () => {
   background: color-mix(in srgb, var(--primary) 7%, var(--bg-glass));
   z-index: 4;
 }
-.context-usage-indicator {
-  margin-left: auto;
-  flex-shrink: 0;
-  padding: 4px 8px;
-  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border-glass));
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.context-usage-indicator small { margin-left: 4px; color: var(--text-muted); font-size: 9px; }
-.context-usage-indicator.soft { color: #b45309; border-color: rgba(245, 158, 11, 0.35); }
-.context-usage-indicator.high { color: #c2410c; border-color: rgba(249, 115, 22, 0.4); }
-.context-usage-indicator.hard { color: #b91c1c; border-color: rgba(239, 68, 68, 0.45); }
-
 .chapter-suggestion-card {
   margin: 10px 12px 0;
   padding: 12px 14px;
@@ -544,26 +460,6 @@ const createInheritedConversation = async () => {
   transform: translateY(8px);
 }
 
-.mode-context.story {
-  background: color-mix(in srgb, #8b5cf6 8%, var(--bg-glass));
-}
-
-.mode-context-badge {
-  flex-shrink: 0;
-  color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.mode-context-copy {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .readonly-notice {
   color: var(--text-secondary);
   font-size: 12px;
@@ -618,6 +514,8 @@ const createInheritedConversation = async () => {
 /* 聊天消息区域 */
 .chat-messages-container {
   flex: 1;
+  min-height: 0;
+  overflow-anchor: none;
   overflow-y: auto;
   padding: 20px 16px;
   scrollbar-width: thin;
@@ -626,6 +524,8 @@ const createInheritedConversation = async () => {
 
 .message-stream {
   width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -735,33 +635,6 @@ const createInheritedConversation = async () => {
   .message-stream {
     gap: 16px;
   }
-
-  .context-usage-indicator small { display: none; }
-
-  .mode-context {
-    padding: 8px 10px;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 4px 8px;
-  }
-
-  .mode-context-copy {
-    grid-column: 1 / -1;
-    white-space: normal;
-    line-height: 1.4;
-  }
-
-  .context-usage-indicator { grid-column: 2; grid-row: 1; margin-left: 0; }
-
-  .story-status-panel.compact {
-    margin: 6px 8px 0;
-    padding: 9px 11px;
-  }
-
-  .story-status-panel.compact .story-status-actions { justify-content: stretch; }
-  .story-status-panel.compact .story-status-actions :deep(.el-button) { width: 100%; margin: 0; }
-  .story-status-panel.compact .story-status-grid { flex-direction: column; gap: 7px; }
-  .story-status-panel.compact .story-status-item strong { white-space: normal; }
 
   .search-bar { padding: 8px; }
   .search-bar :deep(.el-button) { margin-left: 6px !important; }

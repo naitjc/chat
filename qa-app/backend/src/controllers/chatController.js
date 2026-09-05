@@ -1,3 +1,5 @@
+const { updateContinuity } = require("../../../shared/runtime.cjs");
+const { callLLM } = require("../services/llmClient");
 const config = require("../config/config");
 const { callLLMStream, testLLMConnection } = require("../services/llmClient");
 const {
@@ -77,7 +79,7 @@ async function handleChatStream(req, res, next) {
   try {
     let updatedRelationshipState = characterSettings?.relationshipState || null;
     let stateChange = null;
-    const currentHistoryPromise = compressHistoryIfNeeded(history);
+    const currentHistoryPromise = compressHistoryIfNeeded(history, buildSystemPrompt(characterSettings, chatContext), question);
     let impactPromise = Promise.resolve(null);
 
     if (updatedRelationshipState && question) {
@@ -86,6 +88,8 @@ async function handleChatStream(req, res, next) {
           characterSettings.basicInfo?.name || "",
           updatedRelationshipState,
           characterSettings.preferences,
+          history,
+          characterSettings,
         );
     }
 
@@ -148,6 +152,13 @@ async function handleChatStream(req, res, next) {
       },
     );
 
+    if (!fullText.trim()) throw new Error("模型返回了空回复，请重试");
+    if (characterSettings?.basicInfo?.name) send("progress", { phase: "organizing" });
+    const continuity = characterSettings?.basicInfo?.name
+      ? await updateContinuity((messages, options) => callLLM(messages, { ...options, maxRetries: 0, signal: abortController.signal }), finalSettings.memory, question, fullText, chatContext.mode)
+      : { memory: finalSettings.memory };
+    if (abortController.signal.aborted) return;
+
     // 关系变化只有在角色回复完整生成后才提交给客户端。
     // 流式生成失败时，临时计算的变化会被丢弃。
     if (updatedRelationshipState) {
@@ -165,7 +176,9 @@ async function handleChatStream(req, res, next) {
 
     send("done", {
       history: nextApiHistory,
-      memory: finalSettings.memory,
+      ...continuity,
+      relationshipState: updatedRelationshipState,
+      stateChange,
     });
     res.end();
   } catch (error) {
@@ -195,3 +208,24 @@ async function testModel(req, res, next) {
 
 module.exports = { handleChatStream, updateModel, testModel };
 module.exports.validateChatInput = validateChatInput;
+
+async function previewCharacter(req, res, next) {
+  try {
+    validateChatInput({ question: req.body.question });
+    const question = String(req.body.question || '').trim();
+    if (!question || !req.body.characterSettings?.basicInfo?.name) {
+      return res.status(400).json({ error: { message: '请提供角色设定和试聊消息' } });
+    }
+    // Preview shares the role prompt but never touches history, memory, or storage.
+    const prompt = buildSystemPrompt(req.body.characterSettings, { mode: 'free' });
+    const { estimateTokens } = require('../../../shared/runtime.cjs');
+    if (estimateTokens(prompt) + estimateTokens(question) > 20000) {
+      return res.status(413).json({ error: { message: '角色设定或消息过长，请精简后试聊' } });
+    }
+    const data = await callLLM([{ role: 'system', content: prompt }, { role: 'user', content: question }], { timeout: 60000, maxRetries: 0 });
+    const reply = data.choices?.[0]?.message?.content;
+    if (typeof reply !== 'string' || !reply.trim()) throw new Error('模型返回了空回复，请重试');
+    res.json({ reply });
+  } catch (error) { next(error); }
+}
+module.exports.previewCharacter = previewCharacter;

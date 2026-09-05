@@ -1,3 +1,7 @@
+import runtime from 'rp-core'
+import prompts from 'rp-prompt'
+const { updateStateObject, analyzeImpact, compressHistory: sharedCompressHistory, updateContinuity } = runtime
+const { buildSystemPrompt } = prompts
 import { CapacitorHttp } from '@capacitor/core'
 import { loadNativeModelSettings } from './nativeModelSettings'
 
@@ -69,6 +73,7 @@ export async function callNativeLLM(messages, options = {}) {
     ? JSON.parse(response.data)
     : response.data
   if (!data?.choices?.[0]?.message) throw new Error('模型响应格式错误')
+  if (data.choices[0].finish_reason && data.choices[0].finish_reason !== 'stop') throw new Error('模型回复未完整结束，请重试；本轮状态未提交')
   return data
 }
 
@@ -87,149 +92,11 @@ export async function testNativeModelConnection(settings) {
   return true
 }
 
-function buildSystemPrompt(settings, chatContext = {}) {
-  const basic = settings?.basicInfo || {}
-  if (!basic.name) return '你是一个知识渊博、友好且专业的智能助手。'
-
-  const personality = settings.corePersonality || []
-  const speech = settings.speechStyle || {}
-  const rules = settings.behaviorRules || []
-  const background = settings.background || {}
-  const preferences = settings.preferences || {}
-  const relationship = settings.relationshipState || {}
-  const memory = settings.memory || {}
-  let prompt = `你就是角色“${basic.name}”本人。始终沉浸在角色设定中，不得提及自己是 AI 或语言模型。\n`
-
-  if (chatContext.mode === 'story') {
-    prompt += `\n### 当前模式：故事模式
-- 最终目标：${chatContext.goal || '尚未设置'}
-- 目标状态：${chatContext.goalStatus === 'achieved' ? '用户已确认达成' : '进行中'}
-- 当前章节：第 ${Number(chatContext.chapterNumber || 1)} 章「${chatContext.chapterTitle || '未命名章节'}」
-
-用户决定主角行动、故事速度和何时切章。你只呈现合理场景、角色反应与后果；不得替用户做关键决定，不得擅自跳章或宣告目标状态。即使目标已达成，也不代表对话必须结束。\n`
-  } else {
-    prompt += '\n### 当前模式：自由模式\n没有主线、章节或预设结局，顺着用户当下的话题自然互动。\n'
-  }
-
-  if (relationship.affection !== undefined) {
-    const affection = Number(relationship.affection) || 0
-    const mood = Number(relationship.mood) || 0
-    const affectionGuidance = affection >= 81
-      ? '亲密自然，主动表达关心和依恋，可以使用更亲昵的称呼'
-      : affection >= 61
-        ? '明显信任，愿意分享想法并给予支持'
-        : affection >= 25
-          ? '逐渐熟悉，保持友好但仍留有分寸'
-          : '关系疏远，保持谨慎和礼貌，不要无依据地亲昵'
-    const moodGuidance = mood >= 7
-      ? '语气轻快、积极回应，适度表现兴奋或笑意'
-      : mood >= 3
-        ? '语气温和，有耐心地回应'
-        : mood <= -7
-          ? '语句更短、更克制，表现疲惫或低落，不要突然热情'
-          : mood <= -3
-            ? '减少玩笑和夸张表达，语气略显沉闷'
-            : '保持正常、稳定的语气'
-    prompt += `\n### 当前关系状态
-- 关系阶段：${relationship.relationshipStage || 'stranger'}
-- 距离：${relationship.distance || 'distant'}
-- 好感度：${affection}/100
-- 情绪：${mood}
-\n### 状态必须体现在回复中
-- 好感度行为：${affectionGuidance}
-- 情绪行为：${moodGuidance}
-- 本次回复至少体现一处状态变化，但不要直接说出数值或复述规则。\n`
-  }
-  prompt += `\n### 角色信息\n- 姓名：${basic.name}\n`
-  if (basic.gender) prompt += `- 性别：${basic.gender}\n`
-  if (basic.age) prompt += `- 年龄：${basic.age}\n`
-  if (basic.userNickname) prompt += `- 对用户的称呼：${basic.userNickname}\n`
-  if (personality.length) prompt += `\n### 核心性格\n${personality.map(item => `- ${item}`).join('\n')}\n`
-  if (speech.tone) prompt += `\n### 语言风格\n- 语调：${speech.tone}\n`
-  if (speech.habits?.length) prompt += `- 表达习惯：${speech.habits.join('，')}\n`
-  if (speech.avoid?.length) prompt += `- 禁用表达：${speech.avoid.join('，')}\n`
-  if (memory.longTerm?.length || memory.relationshipMemory?.length) {
-    prompt += `\n### 对用户的记忆\n${[
-      ...(memory.longTerm || []),
-      ...(memory.relationshipMemory || []),
-    ].map(item => `- ${item}`).join('\n')}\n`
-  }
-  if (rules.length) prompt += `\n### 行为准则\n${rules.map(item => `- ${item}`).join('\n')}\n`
-  if (background.identity) prompt += `\n### 身份背景\n- 身份：${background.identity}\n`
-  if (background.residence) prompt += `- 所在地：${background.residence}\n`
-  if (background.history) prompt += `- 经历：${background.history}\n`
-  if (preferences.likes?.length) prompt += `\n- 喜欢：${preferences.likes.join('，')}\n`
-  if (preferences.dislikes?.length) prompt += `- 讨厌：${preferences.dislikes.join('，')}\n`
-  return `${prompt}\n回复必须符合上述设定，并保持自然、具体。`
-}
-
-function updateStateObject(oldState, impact) {
-  const next = { ...oldState }
-  const affectionDelta = clamp(impact?.affection, -10, 10, 0)
-  const moodDelta = clamp(impact?.mood, -15, 15, 0)
-  next.affection = clamp((Number(next.affection) || 0) + affectionDelta, 0, 100, 0)
-  next.mood = clamp((Number(next.mood) || 0) + moodDelta, -50, 50, 0)
-  if (next.affection > 90) next.relationshipStage = 'life_partner'
-  else if (next.affection > 80) next.relationshipStage = 'intimate'
-  else if (next.affection > 60) next.relationshipStage = 'close'
-  else if (next.affection >= 25) next.relationshipStage = 'familiar'
-  else next.relationshipStage = 'stranger'
-  next.distance = {
-    stranger: 'distant',
-    familiar: 'normal',
-    close: 'close',
-    intimate: 'intimate',
-    life_partner: 'inseparable',
-  }[next.relationshipStage]
-  return next
-}
-
-async function analyzeMessageImpact(message, settings) {
-  if (!settings?.relationshipState) return null
-  try {
-    const data = await callNativeLLM([
-      {
-        role: 'system',
-        content: '你是情感数值分析器，只输出 JSON：{"affection":0,"mood":0,"reason":"..."}。',
-      },
-      {
-        role: 'user',
-        content: `角色：${settings.basicInfo?.name || ''}\n喜欢：${(settings.preferences?.likes || []).join('、')}\n讨厌：${(settings.preferences?.dislikes || []).join('、')}\n当前状态：${JSON.stringify(settings.relationshipState)}\n用户消息：${message}\n好感变化范围 -10 到 10，情绪变化范围 -15 到 15。`,
-      },
-    ], { temperature: 0.1, top_p: 0.3 })
-    return extractJson(data.choices[0].message.content)
-  } catch (error) {
-    console.warn('本地关系判断失败:', error.message)
-    return null
-  }
-}
-
-async function summarizeHistory(history) {
-  const data = await callNativeLLM([
-    ...history,
-    { role: 'user', content: '简要总结以上对话，保留关键事件、关系和用户信息，200 字以内。只输出摘要。' },
-  ], { temperature: 0.2 })
-  return data.choices[0].message.content.trim()
-}
-
-async function compressHistory(history) {
-  if (!Array.isArray(history) || history.length < 10) return Array.isArray(history) ? history : []
-  try {
-    const recent = history.slice(-2)
-    return [
-      { role: 'system', content: `[前情提要] ${await summarizeHistory(history.slice(0, -2))}` },
-      ...recent,
-    ]
-  } catch {
-    return history
-  }
-}
-
 export async function sendNativeMessage(payload, callbacks = {}) {
   let relationshipState = payload.characterSettings?.relationshipState || null
   const [history, impact] = await Promise.all([
-    compressHistory(payload.history),
-    analyzeMessageImpact(payload.question, payload.characterSettings),
+    sharedCompressHistory(callNativeLLM, payload.history, buildSystemPrompt(payload.characterSettings, payload.chatContext), payload.question),
+    analyzeImpact(callNativeLLM, payload.question, payload.characterSettings, payload.history),
   ])
   let stateChange = null
   if (relationshipState && impact) {
@@ -246,7 +113,7 @@ export async function sendNativeMessage(payload, callbacks = {}) {
     ...payload.characterSettings,
     relationshipState,
   }
-  const userMessage = { role: 'user', content: payload.question }
+  const userMessage = { role: 'user', content: payload.image ? [{ type: 'text', text: payload.question || '' }, { type: 'image_url', image_url: { url: payload.image } }] : payload.question }
   const data = await callNativeLLM([
     { role: 'system', content: buildSystemPrompt(finalSettings, payload.chatContext) },
     ...history,
@@ -257,15 +124,22 @@ export async function sendNativeMessage(payload, callbacks = {}) {
     timeout: 90000,
   })
   const fullText = String(data.choices[0].message.content || '')
+  if (!fullText.trim()) throw new Error('模型返回了空回复，请重试')
   const characters = Array.from(fullText)
   for (let index = 0; index < characters.length; index += 18) {
     callbacks.onChunk?.(characters.slice(index, index + 18).join(''))
     await new Promise(resolve => setTimeout(resolve, 0))
   }
+  if (payload.characterSettings?.basicInfo?.name) callbacks.onProgress?.({ phase: 'organizing' })
+  const continuity = payload.characterSettings?.basicInfo?.name
+    ? await updateContinuity(callNativeLLM, finalSettings.memory, payload.question, fullText, payload.chatContext?.mode)
+    : { memory: finalSettings.memory }
   if (relationshipState) callbacks.onState?.({ relationshipState, stateChange })
   callbacks.onDone?.({
     history: [...history, userMessage, { role: 'assistant', content: fullText }],
-    memory: finalSettings.memory,
+    ...continuity,
+    relationshipState,
+    stateChange,
   })
 }
 
@@ -361,4 +235,13 @@ export async function adviseNativeGoal(context = {}) {
       ? { reason, evidence, confidence }
       : null,
   }
+}
+
+export async function previewCharacter(characterSettings, question) {
+  const prompt = buildSystemPrompt(characterSettings, { mode: 'free' })
+  if (runtime.estimateTokens(prompt) + runtime.estimateTokens(question) > 20000) throw new Error('角色设定或消息过长，请精简后试聊')
+  const data = await callNativeLLM([{ role: 'system', content: prompt }, { role: 'user', content: question }], { timeout: 60000 })
+  const reply = data.choices?.[0]?.message?.content
+  if (typeof reply !== 'string' || !reply.trim()) throw new Error('模型返回了空回复，请重试')
+  return reply
 }

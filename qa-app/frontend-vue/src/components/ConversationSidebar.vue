@@ -183,48 +183,6 @@ const renameArchive = async (relationship) => {
   }
 }
 
-const editGoal = async (relationship) => {
-  try {
-    const { value } = await ElMessageBox.prompt(
-      '写下这个故事最终想要抵达的结果。模型会记住方向，但不会替你推进剧情。',
-      relationship.goal ? '修改最终目标' : '设置最终目标',
-      {
-        inputValue: relationship.goal || '',
-        inputType: 'textarea',
-        inputPattern: /\S+/,
-        inputErrorMessage: '最终目标不能为空',
-        confirmButtonText: '保存目标',
-        cancelButtonText: '取消',
-      },
-    )
-    await chatStore.updateStoryGoal(relationship.id, value.trim())
-  } catch (error) {
-    if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(error.message || '目标保存失败')
-    }
-  }
-}
-
-const reopenGoal = async (relationship) => {
-  try {
-    await ElMessageBox.confirm(
-      '目标内容会保留，状态将改回“进行中”，模型之后可以再次给出达成建议。',
-      '重新开启最终目标',
-      {
-        confirmButtonText: '重新开启',
-        cancelButtonText: '取消',
-        type: 'warning',
-      },
-    )
-    await chatStore.reopenStoryGoal(relationship.id)
-    ElMessage.success('最终目标已重新开启')
-  } catch (error) {
-    if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error(error.message || '目标状态保存失败')
-    }
-  }
-}
-
 const renameChapter = async (chapter) => {
   try {
     const { value } = await ElMessageBox.prompt('输入新的章节名称', '重命名章节', {
@@ -415,45 +373,6 @@ const handleChapterCommand = (command, relationship, chapter) => {
           </div>
 
           <template v-else>
-            <div class="goal-card" :class="{ empty: !relationship.goal }">
-              <div class="goal-card-header">
-                <span class="goal-card-title">
-                  🎯 最终目标
-                  <span
-                    class="goal-status"
-                    :class="{ achieved: relationship.goalStatus === 'achieved' }"
-                  >
-                    {{ relationship.goalStatus === 'achieved' ? '已达成' : '进行中' }}
-                  </span>
-                </span>
-                <span class="goal-card-actions">
-                  <el-button
-                    :icon="EditPen"
-                    text
-                    size="small"
-                    @click="editGoal(relationship)"
-                  >
-                    {{ relationship.goal ? '修改' : '设置' }}
-                  </el-button>
-                  <el-button
-                    v-if="relationship.goalStatus === 'achieved'"
-                    text
-                    size="small"
-                    @click="reopenGoal(relationship)"
-                  >重新开启</el-button>
-                </span>
-              </div>
-              <p>{{ relationship.goal || '这是旧故事存档，请先补充最终目标。' }}</p>
-              <p
-                v-if="relationship.goalStatus === 'achieved' && relationship.goalResolution"
-                class="goal-resolution"
-              >确认依据：{{ relationship.goalResolution }}</p>
-              <small v-if="relationship.goalStatus === 'achieved'">
-                已由你确认达成，但故事和聊天仍然可以继续。
-              </small>
-              <small v-else>模型只会给出达成建议，最终由你确认。</small>
-            </div>
-
             <div class="chapter-heading">
               <span>主线章节</span>
               <small>由你手动推进</small>
@@ -660,7 +579,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
   margin-top: 2px;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -744,7 +663,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
   flex-shrink: 0;
   padding: 1px 6px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -772,7 +691,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
 .archive-meta,
 .chapter-meta {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .more-button {
@@ -803,67 +722,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
   flex-direction: column;
 }
 .free-mode-note strong { color: var(--text-primary); font-size: 11px; }
-.free-mode-note small { margin-top: 2px; color: var(--text-muted); font-size: 9px; }
-
-.goal-card {
-  padding: 9px 10px;
-  border: 1px solid rgba(139, 92, 246, 0.18);
-  border-radius: 10px;
-  background: rgba(139, 92, 246, 0.06);
-}
-.goal-card.empty { border-style: dashed; }
-.goal-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #7c3aed;
-  font-size: 10px;
-  font-weight: 750;
-}
-.goal-card-title,
-.goal-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.goal-card-actions { flex-shrink: 0; }
-.goal-status {
-  padding: 1px 5px;
-  border-radius: 999px;
-  color: #7c3aed;
-  background: rgba(124, 58, 237, 0.1);
-  font-size: 8px;
-  font-weight: 700;
-}
-.goal-status.achieved {
-  color: #15803d;
-  background: rgba(34, 197, 94, 0.12);
-}
-.goal-card-header :deep(.el-button) {
-  height: 22px;
-  margin: 0;
-  padding: 0 3px;
-  color: #7c3aed;
-  font-size: 10px;
-}
-.goal-card p {
-  margin: 5px 0 4px;
-  color: var(--text-primary);
-  font-size: 11px;
-  line-height: 1.45;
-}
-.goal-card .goal-resolution {
-  padding-top: 5px;
-  border-top: 1px solid rgba(139, 92, 246, 0.13);
-  color: var(--text-secondary);
-  font-size: 9px;
-}
-.goal-card small {
-  display: block;
-  color: var(--text-muted);
-  font-size: 9px;
-  line-height: 1.4;
-}
+.free-mode-note small { margin-top: 2px; color: var(--text-muted); font-size: 11px; }
 
 .chapter-heading {
   margin: 10px 4px 5px;
@@ -871,10 +730,10 @@ const handleChapterCommand = (command, relationship, chapter) => {
   align-items: center;
   justify-content: space-between;
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
-.chapter-heading small { color: var(--text-muted); font-size: 9px; font-weight: 400; }
+.chapter-heading small { color: var(--text-muted); font-size: 11px; font-weight: 400; }
 
 .chapter-list {
   position: relative;
@@ -932,7 +791,7 @@ const handleChapterCommand = (command, relationship, chapter) => {
   border-radius: 50%;
   background: var(--bg-glass-card);
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 750;
 }
 .chapter-row.active .chapter-marker {
@@ -1040,10 +899,10 @@ const handleChapterCommand = (command, relationship, chapter) => {
 .mode-option-icon { flex-shrink: 0; font-size: 22px; }
 .mode-option-copy { min-width: 0; display: flex; flex-direction: column; }
 .mode-option-copy strong { color: var(--text-primary); font-size: 13px; }
-.mode-option-copy small { margin-top: 3px; color: var(--text-muted); font-size: 10px; line-height: 1.4; }
+.mode-option-copy small { margin-top: 3px; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
 .archive-form { margin-top: 16px; }
 .archive-form :deep(.el-form-item) { margin-bottom: 14px; }
-.goal-help { margin-top: 5px; color: var(--text-muted); font-size: 10px; }
+.goal-help { margin-top: 5px; color: var(--text-muted); font-size: 12px; }
 .affection-input { display: flex; align-items: center; gap: 14px; width: 100%; }
 .affection-input .el-slider { flex: 1; }
 .affection-value { min-width: 52px; color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }

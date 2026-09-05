@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, defineAsyncComponent } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useChatStore } from '../../store/chatStore'
 const EmojiPicker = defineAsyncComponent(() => import('./EmojiPicker.vue'))
 
@@ -26,7 +27,12 @@ const sendMessage = async () => {
   if (!canSend.value) return
   const text = chatInput.value
   chatInput.value = ''
-  await chatStore.sendMessage(text)
+  try {
+    if (await chatStore.sendMessage(text) === false) chatInput.value = text
+  } catch (error) {
+    chatInput.value = text
+    ElMessage.error(error.message)
+  }
 }
 
 const handleEnter = (event) => {
@@ -54,7 +60,7 @@ const insertEmoji = (emoji) => {
   // 下一帧恢复光标到插入点之后
   requestAnimationFrame(() => {
     el.focus()
-    const pos = start + [...emoji].length
+    const pos = start + emoji.length
     el.setSelectionRange(pos, pos)
   })
 }
@@ -92,6 +98,7 @@ const insertEmoji = (emoji) => {
         aria-label="聊天消息"
         @keydown.enter="handleEnter"
         class="custom-textarea"
+        maxlength="12000"
         :disabled="chatStore.isSending || !chatStore.activeConversationId || chatStore.isActiveChapterReadOnly"
       />
     </div>
@@ -111,7 +118,7 @@ const insertEmoji = (emoji) => {
 <style scoped>
 .message-input-container {
   padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--bg-glass);
   backdrop-filter: blur(4px);
   display: flex;
   gap: 16px;
@@ -133,7 +140,7 @@ const insertEmoji = (emoji) => {
 
 :deep(.custom-textarea .el-textarea__inner) {
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--input-bg);
   border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
   padding: 10px 14px;
@@ -144,8 +151,8 @@ const insertEmoji = (emoji) => {
 }
 
 :deep(.custom-textarea .el-textarea__inner:focus) {
-  background: white;
-  border-color: #409effb3;
+  background: var(--input-bg-focus);
+  border-color: var(--action-color);
   box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
 }
 
@@ -167,7 +174,7 @@ const insertEmoji = (emoji) => {
   width: 40px !important;
   height: 40px !important;
   border-radius: 10px !important;
-  background: rgba(255, 255, 255, 0.6) !important;
+  background: var(--input-bg) !important;
   border: 1px solid rgba(0, 0, 0, 0.05) !important;
   font-size: 18px;
   padding: 0 !important;

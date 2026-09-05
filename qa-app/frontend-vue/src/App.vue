@@ -13,7 +13,6 @@ const chatStore = useChatStore()
 const hasSelectedArchive = computed(() => Boolean(chatStore.activeConversationId))
 const showSnow = ref(true)
 const isMobile = ref(false)
-const showDesktopSettings = ref(true)
 const showDesktopConversations = ref(true)
 const settingsDrawerOpen = ref(false)
 const conversationDrawerOpen = ref(false)
@@ -46,12 +45,8 @@ const handleCharacterSelect = (character) => chatStore.setCharacter(character)
 const handleBackgroundUpdate = (bg) => chatStore.setChatBackground(bg)
 const toggleSettings = () => {
   if (!hasSelectedArchive.value) return
-  if (isMobile.value) {
-    conversationDrawerOpen.value = false
-    settingsDrawerOpen.value = !settingsDrawerOpen.value
-    return
-  }
-  showDesktopSettings.value = !showDesktopSettings.value
+  conversationDrawerOpen.value = false
+  settingsDrawerOpen.value = !settingsDrawerOpen.value
 }
 
 const toggleConversations = () => {
@@ -90,7 +85,7 @@ watch(
     <el-container direction="vertical">
       <AppHeader
         :is-mobile="isMobile"
-        :settings-open="isMobile ? settingsDrawerOpen : showDesktopSettings"
+        :settings-open="settingsDrawerOpen"
         :conversations-open="isMobile ? conversationDrawerOpen : showDesktopConversations"
         @select-character="handleCharacterSelect"
         @update-background="handleBackgroundUpdate"
@@ -101,15 +96,12 @@ watch(
         <Transition name="settings-panel">
           <ConversationSidebar v-if="!isMobile && showDesktopConversations" />
         </Transition>
-        <Transition name="settings-panel">
-          <CharacterSettings v-if="hasSelectedArchive && !isMobile && showDesktopSettings" />
-        </Transition>
         <ChatArea v-if="hasSelectedArchive" :is-mobile="isMobile" />
-        <section v-else-if="isMobile" class="mobile-empty-state">
+        <section v-else class="mobile-empty-state">
           <span class="mobile-empty-icon">💬</span>
           <strong>先打开一个聊天存档</strong>
           <p>存档会保存聊天记录、关系状态和角色设定。</p>
-          <el-button type="primary" @click="conversationDrawerOpen = true">选择或新建存档</el-button>
+          <el-button type="primary" @click="isMobile ? conversationDrawerOpen = true : showDesktopConversations = true">选择或新建存档</el-button>
         </section>
       </el-main>
     </el-container>
@@ -136,10 +128,9 @@ watch(
     </el-drawer>
 
     <el-drawer
-      v-if="isMobile"
       v-model="settingsDrawerOpen"
-      direction="ltr"
-      size="88%"
+      :direction="isMobile ? 'ltr' : 'rtl'"
+      :size="isMobile ? '100%' : '380px'"
       :with-header="false"
       class="settings-drawer"
     >
@@ -179,7 +170,7 @@ watch(
   overflow: hidden;
   padding: 0;
   display: flex;
-  gap: 20px;
+  gap: 16px;
   flex: 1;
   min-height: 0;
 }
@@ -194,23 +185,6 @@ watch(
   opacity: 0;
   transform: translateX(-12px);
 }
-
-@media (max-width: 800px) {
-  #app-root {
-    align-items: stretch;
-  }
-
-  :deep(.el-container) {
-    width: 100%;
-    height: 100dvh;
-    max-width: none;
-    padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
-  }
-
-  :deep(.el-main) {
-    overflow: hidden;
-    gap: 0;
-  }
 
   .mobile-empty-state {
     min-width: 0;
@@ -230,13 +204,32 @@ watch(
   .mobile-empty-state strong { color: var(--text-primary); font-size: 17px; }
   .mobile-empty-state p { max-width: 260px; margin: 8px 0 18px; font-size: 13px; line-height: 1.6; }
   .mobile-empty-icon { margin-bottom: 12px; font-size: 34px; }
+
+@media (max-width: 800px) {
+  #app-root {
+    align-items: stretch;
+  }
+
+  :deep(.el-container) {
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
+  }
+
+  :deep(.el-main) {
+    overflow: hidden;
+    gap: 0;
+  }
+
+
 }
 </style>
 
 <style>
 .settings-drawer.el-drawer {
-  max-width: 360px;
-  background: var(--bg-gradient);
+  max-width: 380px;
+  background: var(--panel-bg);
 }
 
 .conversation-drawer.el-drawer {

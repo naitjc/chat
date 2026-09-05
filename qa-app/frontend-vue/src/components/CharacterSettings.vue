@@ -1,9 +1,10 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useChatStore } from '../store/chatStore'
 import StatusPanel from './chat/StatusPanel.vue'
 import { DocumentCopy, User } from '@element-plus/icons-vue'
+import { previewCharacter } from '../api/chat'
 import { readOptimizedImage } from '../utils/imageFile'
 
 const chatStore = useChatStore()
@@ -11,7 +12,23 @@ const chatStore = useChatStore()
 const settings = computed(() => chatStore.characterSettings)
 
 const hasCharacter = computed(() => !!settings.value?.basicInfo?.name)
-const isReadOnly = computed(() => chatStore.isActiveChapterReadOnly)
+const isReadOnly = computed(() => chatStore.isActiveChapterReadOnly || chatStore.isSending)
+const trialInput = ref('')
+const trialReply = ref('')
+const trialBusy = ref(false)
+const runTrial = async () => {
+  if (!trialInput.value.trim() || trialBusy.value) return
+  const conversationId = chatStore.activeConversationId
+  trialBusy.value = true
+  trialReply.value = ''
+  try {
+    const reply = await previewCharacter(JSON.parse(JSON.stringify(settings.value)), trialInput.value)
+    if (chatStore.activeConversationId === conversationId) trialReply.value = reply
+  }
+  catch (error) { ElMessage.error(error.message) }
+  finally { trialBusy.value = false }
+}
+watch(() => chatStore.activeConversationId, () => { trialInput.value = ''; trialReply.value = '' })
 const avatarInputRef = ref(null)
 
 // 头像上传
@@ -132,6 +149,18 @@ const copyCharacterSettings = () => {
             </el-form-item>
           </el-collapse-item>
 
+          <el-collapse-item name="examples">
+            <template #title><span class="collapse-title">💬 示例对话与试聊</span></template>
+            <el-form-item label="示例对话">
+              <el-input v-model="settings.exampleDialogue" type="textarea" :rows="5" maxlength="4000" show-word-limit :disabled="isReadOnly" placeholder="用户：今天不太开心。&#10;角色：要不要坐一会儿？不想说也没关系。" />
+            </el-form-item>
+            <p class="trial-help">示例只用于学习语气，不会当成已经发生的剧情。</p>
+            <el-input v-model="trialInput" type="textarea" :rows="3" maxlength="12000" :disabled="trialBusy" placeholder="输入一句话，看看角色怎样回应" />
+            <el-button class="trial-button" :loading="trialBusy" :disabled="!trialInput.trim() || chatStore.isSending" @click="runTrial">试聊</el-button>
+            <p class="trial-help">使用当前模型接口；试聊不写入聊天存档，不改变关系和记忆。</p>
+            <p v-if="trialReply" class="trial-reply">{{ trialReply }}</p>
+          </el-collapse-item>
+
           <!-- 行为与背景 -->
           <el-collapse-item name="background">
             <template #title><span class="collapse-title">📖 背景设定</span></template>
@@ -155,6 +184,9 @@ const copyCharacterSettings = () => {
 </template>
 
 <style scoped>
+.trial-help { color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+.trial-button { margin-top: 10px; }
+.trial-reply { white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px; background: var(--bg-glass); border-radius: 8px; }
 .settings-card {
   width: 300px;
   height: 100%;
